@@ -1,0 +1,42 @@
+first install dev client
+npx expo install  expo-dev-client
+
+make it as an apk for emulator or for the android
+npx eas build --profile development --platform android
+
+
+if na n nimo or na stop ang pag download sa emulator, ipadagan ni:
+npx eas build:run -p android
+
+
+if ganahan ka ipadagan sa cp tas kailangan i tunnel, run this:
+npm install @expo/ngrok --save-dev
+
+then:
+npx expo start --dev-client --tunnel
+
+
+
+1. Your Daily Command (99% of the time)
+Whenever you sit down to write code, just open your terminal and run:
+
+bash
+npx expo start -c --dev-client
+
+2. If the cache ever gets stuck (The "Fix-It" Command)
+If your app ever acts weird, refuses to connect, or you just installed a basic javascript npm package and it's not showing up, clear the bundler cache:
+
+bash
+npx expo start --dev-client -c
+
+
+3. The "Rebuild" Command (Only 1% of the time)
+Because your custom app is pre-built, you only need to run the long cloud build command again if you install a package that requires native Android/iOS code (like expo-camera, expo-location, or Bluetooth packages). If you install one of those, you must run this to rebuild the .apk:
+
+bash
+npx eas build --profile development --platform android
+
+
+4. To run independently in Android
+
+npx eas build --profile preview --platform android
