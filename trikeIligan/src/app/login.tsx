@@ -12,7 +12,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = () => {
-    if (username === 'DidotGwapo' && password === '12345678') {
+    if (username.trim() === 'DidotGwapo' && password.trim() === 'walaragud') {
       router.push('/home');
     } else {
       Alert.alert('Error', 'Invalid username or password');
@@ -58,6 +58,8 @@ export default function LoginScreen() {
                 placeholderTextColor="#A0A0A0"
                 value={username}
                 onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
             </View>
 

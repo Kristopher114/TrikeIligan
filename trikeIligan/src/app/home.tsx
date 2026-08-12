@@ -1,19 +1,118 @@
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, TextInput, Animated, PanResponder, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, TextInput, Animated, PanResponder, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useRef } from 'react';
+import { WebView } from 'react-native-webview';
+import { useRef, useState } from 'react';
 
 const { height: windowHeight } = Dimensions.get('window');
 const SNAP_TOP = windowHeight * 0.15; // Expanded (15% from top)
 const SNAP_BOTTOM = windowHeight * 0.58; // Collapsed (58% from top)
 
+const leafletHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { padding: 0; margin: 0; background-color: #F0F0F0; }
+        html, body, #map { height: 100%; width: 100%; }
+        .leaflet-control-attribution { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        var map = L.map('map', {
+            zoomControl: false,
+            dragging: false,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            touchZoom: false
+        }).setView([8.2280, 124.2452], 14);
+
+        L.tileLayer('https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+    </script>
+</body>
+</html>
+`;
+
 export default function HomeScreen() {
     const router = useRouter();
 
     const translateY = useRef(new Animated.Value(SNAP_BOTTOM)).current;
+    const webviewRef = useRef(null);
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    const searchPlaces = async (text) => {
+        setSearchQuery(text);
+        if (text.length < 3) {
+            setSearchResults([]);
+            return;
+        }
+        setIsSearching(true);
+        try {
+            // Use free OSM Nominatim API, restricted to Philippines
+            // Nominatim REQUIRES a User-Agent header, otherwise it blocks the request
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&addressdetails=1&limit=5&countrycodes=ph`,
+                {
+                    headers: {
+                        'User-Agent': 'TrikeIliganApp/1.0'
+                    }
+                }
+            );
+            
+            if (!response.ok) {
+                console.error('API Error:', response.status);
+                setIsSearching(false);
+                return;
+            }
+            
+            const data = await response.json();
+            setSearchResults(data);
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleSelectLocation = (place) => {
+        setSearchQuery(place.display_name);
+        setSearchResults([]);
+        
+        const lat = parseFloat(place.lat);
+        const lon = parseFloat(place.lon);
+        
+        // Pan the map and add a marker without reloading
+        if (webviewRef.current) {
+            webviewRef.current.injectJavaScript(`
+                if (window.searchMarker) {
+                    map.removeLayer(window.searchMarker);
+                }
+                window.searchMarker = L.marker([${lat}, ${lon}]).addTo(map);
+                map.flyTo([${lat}, ${lon}], 16);
+                true;
+            `);
+        }
+        
+        // Optional: snap the bottom sheet down to view the map
+        Animated.spring(translateY, {
+            toValue: SNAP_BOTTOM,
+            useNativeDriver: true,
+            bounciness: 4,
+        }).start();
+    };
 
     const panResponder = useRef(
         PanResponder.create({
@@ -64,16 +163,25 @@ export default function HomeScreen() {
                     <Text style={styles.userName}>Juan Dela Cruz</Text>
                 </View>
 
-                {/* Map Placeholder Section */}
-                <View style={styles.mapPlaceholder}>
-                    {/* Faked Map Area */}
-                    <Text style={styles.placeholderText}>Map Box</Text>
-                    
-                    {/* Floating Location Pill */}
-                    <View style={styles.floatingLocation}>
-                        <Ionicons name="location-sharp" size={16} color="#d9534f" />
-                        <Text style={styles.floatingLocationText}>Pala-o, Iligan, City</Text>
-                    </View>
+                {/* Map Section (OpenStreetMap) */}
+                <View style={styles.mapPlaceholder} pointerEvents="none">
+                    <WebView
+                        ref={webviewRef}
+                        source={{ html: leafletHTML }}
+                        style={{ flex: 1 }}
+                        scrollEnabled={false}
+                        showsHorizontalScrollIndicator={false}
+                        showsVerticalScrollIndicator={false}
+                        originWhitelist={['*']}
+                        javaScriptEnabled={true}
+                        domStorageEnabled={true}
+                    />
+                </View>
+
+                {/* Floating Location Pill */}
+                <View style={styles.floatingLocation}>
+                    <Ionicons name="location-sharp" size={16} color="#d9534f" />
+                    <Text style={styles.floatingLocationText}>Pala-o, Iligan, City</Text>
                 </View>
 
                 {/* Bottom Sheet Section */}
@@ -88,12 +196,38 @@ export default function HomeScreen() {
                         {/* Search Input */}
                         <View style={styles.searchInputContainer}>
                             <Ionicons name="search" size={20} color="#1B6E45" />
-                            <TextInput 
+                            <TextInput
                                 style={styles.searchInput}
                                 placeholder="Where are you going?"
                                 placeholderTextColor="#7B9B88"
+                                value={searchQuery}
+                                onChangeText={searchPlaces}
                             />
+                            {isSearching && <ActivityIndicator size="small" color="#1B6E45" />}
                         </View>
+
+                        {/* Search Results */}
+                        {searchResults.length > 0 && (
+                            <View style={styles.searchResultsContainer}>
+                                {searchResults.map((place, index) => (
+                                    <TouchableOpacity 
+                                        key={place.place_id || index} 
+                                        style={styles.searchResultItem}
+                                        onPress={() => handleSelectLocation(place)}
+                                    >
+                                        <Ionicons name="location-outline" size={20} color="#1B6E45" style={{marginRight: 10, marginTop: 2}}/>
+                                        <View style={{flex: 1}}>
+                                            <Text style={styles.searchResultTitle} numberOfLines={1}>
+                                                {place.name || place.display_name.split(',')[0]}
+                                            </Text>
+                                            <Text style={styles.searchResultSubtitle} numberOfLines={2}>
+                                                {place.display_name}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
 
                         {/* Quick Tags */}
                         <View style={styles.quickTagsContainer}>
@@ -175,8 +309,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F0F0F0',
         position: 'relative',
-        justifyContent: 'center',
-        alignItems: 'center',
         paddingBottom: 200,
     },
     placeholderText: {
@@ -327,5 +459,36 @@ const styles = StyleSheet.create({
         fontFamily: 'Outfit_500Medium',
         fontSize: 12,
         marginTop: 4,
+    },
+    searchResultsContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 8,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#E4F6EB',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2,
+    },
+    searchResultItem: {
+        flexDirection: 'row',
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    searchResultTitle: {
+        fontFamily: 'Outfit_600SemiBold',
+        fontSize: 16,
+        color: '#1B6E45',
+        marginBottom: 2,
+    },
+    searchResultSubtitle: {
+        fontFamily: 'Outfit_400Regular',
+        fontSize: 12,
+        color: '#7B9B88',
     },
 });

@@ -35,4 +35,17 @@ This document serves as a complete log of everything we accomplished during our 
   - **Full Screen Map**: Adjusted the map placeholder to take up the entire background (`StyleSheet.absoluteFillObject`).
   - **Snap Points**: Implemented logic so the sheet defaults to 58% down the screen, but smoothly snaps to 15% from the top (expanding fully) when the user grabs the newly-added grey drag handle and swipes up.
 
-and put this here [README.md](file;file:///c%3A/Users/KrisToper/Desktop/TrikeIligan/README.md)
+### Update: August 12, 2026 - Migration to 100% Free Open-Source Map Engine
+- **Removed Google Maps (`react-native-maps`)**:
+  - Scrapped the native Google Maps implementation to avoid API key and billing requirements, ensuring the app remains 100% free to build and run.
+  - Scrubbed dummy API keys from `app.json` and `AndroidManifest.xml`.
+- **Integrated Leaflet & OpenStreetMap**:
+  - Installed `react-native-webview` to securely host a local HTML map engine.
+  - Embedded **Leaflet** with free OpenStreetMap tiles directly into the Home screen.
+  - Fixed Android WebView security constraints by enabling `javaScriptEnabled` and `domStorageEnabled` to allow Leaflet to render natively.
+- **Implemented Free Location Search (Nominatim API)**:
+  - Built a fully functional search bar that queries OpenStreetMap's **Nominatim API** for real locations in the Philippines.
+  - Bypassed API blocks by supplying a custom `User-Agent` header (`TrikeIliganApp/1.0`).
+  - Implemented seamless map interactivity: Tapping a search result injects Javascript into the WebView to `flyTo()` the coordinates and drop a marker, without reloading the map!
+- **Fixed Android Build Glitches**:
+  - Resolved stubborn `java.net.BindException` network port bugs by forcefully disabling the Gradle Daemon in `gradle.properties` and purging corrupted lock files.
