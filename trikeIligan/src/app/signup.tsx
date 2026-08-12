@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
@@ -9,14 +9,16 @@ export default function SignupScreen() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
 
+    const [username, setUsername] = useState('');
+    const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [emailError, setEmailError] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [emailError, setEmailError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSignUp = () => {
+    const handleSignUp = async () => {
         // Basic email regex pattern
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,6 +36,42 @@ export default function SignupScreen() {
         } else if (password.length < 6) {
             Alert.alert('Error', 'Passwords must be at least 6 characters long');
             return;
+        }
+
+        if (!username || !fullName || !phoneNumber) {
+            Alert.alert('Error', 'Please fill in all fields.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('http://192.168.1.39:3000/api/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username,
+                    fullName,
+                    email,
+                    phoneNumber,
+                    password
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                Alert.alert('Success', 'Account created successfully!');
+                router.replace('/login');
+            } else {
+                Alert.alert('Signup Failed', data.message || 'An error occurred during signup.');
+            }
+        } catch (error) {
+            console.error('Signup error:', error);
+            Alert.alert('Network Error', 'Could not connect to the server. Please check your connection.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -80,6 +118,18 @@ export default function SignupScreen() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.form}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Username</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="juandelacruz123"
+                                placeholderTextColor="#A0A0A0"
+                                value={username}
+                                onChangeText={setUsername}
+                                autoCapitalize="none"
+                            />
+                        </View>
+
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Full Name</Text>
                             <TextInput
@@ -156,8 +206,16 @@ export default function SignupScreen() {
 
                     {/* Bottom Button */}
                     <View style={[styles.bottomContainer, { paddingHorizontal: 0, paddingBottom: 20 }]}>
-                        <TouchableOpacity style={styles.loginButton} onPress={handleSignUp}>
-                            <Text style={styles.loginButtonText}>Sign Up</Text>
+                        <TouchableOpacity
+                            style={[styles.loginButton, isSubmitting && { opacity: 0.7 }]}
+                            onPress={handleSignUp}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.loginButtonText}>Sign Up</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </KeyboardAwareScrollView>

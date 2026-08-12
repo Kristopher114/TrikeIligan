@@ -4,9 +4,29 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
     const router = useRouter();
+    const [fullName, setFullName] = useState('');
+    
+    const [showName, setShowName] = useState(false);
+
+    useEffect(() => {
+        const loadName = async () => {
+            try {
+                const name = await AsyncStorage.getItem('userFullName');
+                if (name) setFullName(name);
+            } catch (e) {
+                console.error("Failed to load name", e);
+            }
+        };
+        loadName();
+    }, []);
+
+
+
 
     const [fontsLoaded] = useFonts({
         Outfit_700Bold,
@@ -27,7 +47,7 @@ export default function HomeScreen() {
                 {/* Header Section */}
                 <View style={styles.header}>
                     <Text style={styles.greeting}>Good day 👋</Text>
-                    <Text style={styles.userName}>Juan Dela Cruz</Text>
+                    <Text style={styles.userName}>{fullName || 'Guest'}</Text>
                 </View>
 
                 {/* Services Grid */}

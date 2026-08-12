@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
@@ -10,12 +11,44 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = () => {
-    if (username.trim() === 'DidotGwapo' && password.trim() === 'walaragud') {
-      router.push('/home');
-    } else {
-      Alert.alert('Error', 'Invalid username or password');
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both username and password');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('http://192.168.1.39:3000/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim()
+        }),
+      });
+
+      const data = await response.json();
+      console.log("Login API Response:", data);
+
+      if (response.ok) {
+        // Save the name to AsyncStorage for persistence
+        if (data.user?.fullName) {
+          await AsyncStorage.setItem('userFullName', data.user.fullName);
+        }
+        router.push('/home');
+      } else {
+        Alert.alert('Login Failed', data.message || 'Invalid username or password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Network Error', 'Could not connect to the server. Please check your connection.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   const [fontsLoaded] = useFonts({
@@ -87,8 +120,16 @@ export default function LoginScreen() {
 
         {/* Bottom Button */}
         <View style={styles.bottomContainer}>
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Log In</Text>
+          <TouchableOpacity
+            style={[styles.loginButton, isSubmitting && { opacity: 0.7 }]}
+            onPress={handleLogin}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>Log In</Text>
+            )}
           </TouchableOpacity>
         </View>
 
