@@ -131,3 +131,16 @@ This document serves as a complete log of everything we accomplished during our 
   - *Vital Command Run*: `ipconfig` to discover the active Wi-Fi IPv4 address (`192.168.1.39`) and successfully re-routed the app's `fetch` calls through the stable network.
   - Encountered an `[AsyncStorageError: Native module is null]` crash when attempting to add `@react-native-async-storage/async-storage` to a pre-compiled Expo Development Build.
   - *Vital Command Run*: `npx expo run:android` to fire up the Android Gradle Daemon and completely rebuild the underlying native `.apk` from scratch, properly linking the Java native code required for persistent device storage.
+
+### Update: August 23, 2026 - Cloud Deployment (Render) & Network Fixes
+- **Backend Cloud Deployment Preparation**:
+  - Prepared the `trikego-backend` Express server for production deployment on **Render Web Services**.
+  - Updated `package.json` with a dedicated `"start": "node index.js"` script to instruct Render on how to boot the server.
+  - Created a `.gitignore` file to strictly prevent sensitive files (`.env` containing database credentials) and heavy folders (`node_modules/`) from being uploaded to GitHub.
+- **Render Monorepo Troubleshooting**:
+  - Resolved a severe deployment crash (`ENOENT: no such file or directory, open '/opt/render/project/src/package.json'`) caused by linking the root repository instead of the backend folder.
+  - Fixed by explicitly setting the **Root Directory** inside the Render Dashboard to `trikego-backend`, allowing Render to successfully locate dependencies and execute `npm install`.
+- **Database & Local Network Integrity**:
+  - Verified cloud database persistence by re-running the verification script.
+  - *Vital Command Run*: `node check-data.js` to successfully retrieve passenger and user records from the Neon PostgreSQL database.
+  - Resolved recurrent 60-second fetch timeouts (`java.net.ConnectException`) caused by dynamic IP address changes on the local Windows network. Successfully remapped the frontend API calls in `signup.tsx` and `login.tsx` back to the stable Mobile Hotspot IP address (`192.168.137.1`).
