@@ -45,7 +45,7 @@ export default function SignupScreen() {
 
         setIsSubmitting(true);
         try {
-            const response = await fetch('http://192.168.137.1:3000/api/signup', {
+            const response = await fetch('https://trikeiligan.onrender.com/api/signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

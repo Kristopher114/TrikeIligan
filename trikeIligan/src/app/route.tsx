@@ -223,6 +223,22 @@ export default function RouteScreen() {
                     )}
                 </ScrollView>
 
+                {/* Book a Rider Button */}
+                {pickupQuery.trim().length > 0 && dropoffQuery.trim().length > 0 && (
+                    <View style={styles.bookButtonContainer}>
+                        <TouchableOpacity 
+                            style={styles.bookButton}
+                            onPress={() => {
+                                router.push({
+                                    pathname: '/rider-selection',
+                                    params: { pickup: pickupQuery, dropoff: dropoffQuery }
+                                });
+                            }}
+                        >
+                            <Text style={styles.bookButtonText}>Book a Rider</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </SafeAreaView>
     );
@@ -349,5 +365,27 @@ const styles = StyleSheet.create({
         fontFamily: 'Outfit_400Regular',
         fontSize: 12,
         color: '#757575',
+    },
+    bookButtonContainer: {
+        position: 'absolute',
+        bottom: Platform.OS === 'ios' ? 32 : 24,
+        left: 16,
+        right: 16,
+    },
+    bookButton: {
+        backgroundColor: '#1B6E45',
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    bookButtonText: {
+        fontFamily: 'Outfit_700Bold',
+        fontSize: 16,
+        color: '#FFFFFF',
     }
 });
