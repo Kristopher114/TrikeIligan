@@ -12,6 +12,8 @@ export default function RouteScreen() {
 
     const [pickupQuery, setPickupQuery] = useState(params.pickup || '');
     const [dropoffQuery, setDropoffQuery] = useState(params.dropoff || '');
+    const [pickupCoords, setPickupCoords] = useState(params.pickupLat ? { lat: params.pickupLat, lon: params.pickupLon } : null);
+    const [dropoffCoords, setDropoffCoords] = useState(params.dropoffLat ? { lat: params.dropoffLat, lon: params.dropoffLon } : null);
     const [activeInput, setActiveInput] = useState(null); // 'pickup' | 'dropoff' | null
 
     const [searchResults, setSearchResults] = useState([]);
@@ -50,10 +52,13 @@ export default function RouteScreen() {
                             const props = f.properties;
                             const title = props.name || props.street || props.city || "Unknown Location";
                             const subtitle = [props.street, props.district, props.city].filter(Boolean).join(', ');
+                            const coords = f.geometry.coordinates;
                             return {
                                 place_id: props.osm_id || Math.random().toString(),
                                 name: title,
                                 display_name: title + (subtitle ? ', ' + subtitle : ''),
+                                lat: coords[1],
+                                lon: coords[0]
                             };
                         });
                         setSearchResults(formattedResults);
@@ -78,8 +83,10 @@ export default function RouteScreen() {
     const handleSelectResult = (place) => {
         if (activeInput === 'pickup') {
             setPickupQuery(place.display_name);
+            setPickupCoords({ lat: place.lat, lon: place.lon });
         } else if (activeInput === 'dropoff') {
             setDropoffQuery(place.display_name);
+            setDropoffCoords({ lat: place.lat, lon: place.lon });
         }
         setSearchResults([]);
         setActiveInput(null);
@@ -87,16 +94,36 @@ export default function RouteScreen() {
 
     const handleMapIconPress = (type) => {
         if (type === 'pickup') {
-            router.push({ pathname: '/map', params: { mode: 'PICKUP', returnTo: '/route', dropoff: dropoffQuery } });
+            router.push({ 
+                pathname: '/map', 
+                params: { 
+                    mode: 'PICKUP', 
+                    returnTo: '/route', 
+                    dropoff: dropoffQuery,
+                    dropoffLat: dropoffCoords?.lat,
+                    dropoffLon: dropoffCoords?.lon
+                } 
+            });
         } else {
-            router.push({ pathname: '/map', params: { mode: 'DESTINATION', returnTo: '/route', pickup: pickupQuery } });
+            router.push({ 
+                pathname: '/map', 
+                params: { 
+                    mode: 'DESTINATION', 
+                    returnTo: '/route', 
+                    pickup: pickupQuery,
+                    pickupLat: pickupCoords?.lat,
+                    pickupLon: pickupCoords?.lon
+                } 
+            });
         }
     };
 
     useEffect(() => {
         if (params.pickup) setPickupQuery(params.pickup);
         if (params.dropoff) setDropoffQuery(params.dropoff);
-    }, [params.pickup, params.dropoff]);
+        if (params.pickupLat) setPickupCoords({ lat: params.pickupLat, lon: params.pickupLon });
+        if (params.dropoffLat) setDropoffCoords({ lat: params.dropoffLat, lon: params.dropoffLon });
+    }, [params.pickup, params.dropoff, params.pickupLat, params.dropoffLat]);
 
     const [fontsLoaded] = useFonts({
         Outfit_700Bold,
@@ -231,7 +258,14 @@ export default function RouteScreen() {
                             onPress={() => {
                                 router.push({
                                     pathname: '/rider-selection',
-                                    params: { pickup: pickupQuery, dropoff: dropoffQuery }
+                                    params: { 
+                                        pickup: pickupQuery, 
+                                        dropoff: dropoffQuery,
+                                        pickupLat: pickupCoords?.lat,
+                                        pickupLon: pickupCoords?.lon,
+                                        dropoffLat: dropoffCoords?.lat,
+                                        dropoffLon: dropoffCoords?.lon
+                                    }
                                 });
                             }}
                         >

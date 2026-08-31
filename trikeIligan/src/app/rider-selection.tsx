@@ -3,12 +3,58 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
 
 const { width } = Dimensions.get('window');
 
 export default function RiderSelectionScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+
+    const [fare, setFare] = useState('55.00'); // Default
+    const [eta, setEta] = useState('2'); // Default
+    const [isCalculating, setIsCalculating] = useState(true);
+
+    useEffect(() => {
+        const fetchFare = async () => {
+            if (params.pickupLat && params.pickupLon && params.dropoffLat && params.dropoffLon) {
+                try {
+                    // Use Render backend
+                    const response = await fetch('https://trikeiligan.onrender.com/api/calculate-fare', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            pickupLat: parseFloat(params.pickupLat as string),
+                            pickupLon: parseFloat(params.pickupLon as string),
+                            dropLat: parseFloat(params.dropoffLat as string),
+                            dropLon: parseFloat(params.dropoffLon as string)
+                        })
+                    });
+                    if (response.ok) {
+                        const json = await response.json();
+                        if (json.status === 'success') {
+                            setFare(json.data.fare.toFixed(2));
+                            setEta(json.data.estimatedTimeMins.toString());
+                        }
+                    } else {
+                        setFare('Error');
+                        console.error('Render returned: ' + response.status);
+                    }
+                } catch (error) {
+                    console.error("Error calculating fare:", error);
+                    setFare('Error');
+                } finally {
+                    setIsCalculating(false);
+                }
+            } else {
+                setFare('No Coords');
+                setIsCalculating(false); // Missing coordinates
+            }
+        };
+
+        fetchFare();
+    }, [params]);
 
     const [fontsLoaded] = useFonts({
         Outfit_700Bold,
@@ -43,7 +89,11 @@ export default function RiderSelectionScreen() {
 
                 {/* Price */}
                 <View style={styles.priceContainer}>
-                    <Text style={styles.priceText}>₱55.00</Text>
+                    {isCalculating ? (
+                        <Text style={styles.priceText}>Calculating...</Text>
+                    ) : (
+                        <Text style={styles.priceText}>₱{fare}</Text>
+                    )}
                     <Text style={styles.priceSubtext}>Fixed price</Text>
                 </View>
 
@@ -57,7 +107,7 @@ export default function RiderSelectionScreen() {
                         </View>
                         <View style={styles.etaBadge}>
                             <Ionicons name="time-outline" size={12} color="#000" style={{marginRight: 4}} />
-                            <Text style={styles.etaText}>2 mins away</Text>
+                            <Text style={styles.etaText}>{eta} mins away</Text>
                         </View>
                     </View>
 
@@ -73,7 +123,7 @@ export default function RiderSelectionScreen() {
                                 <Text style={styles.ratingText}>4.9</Text>
                             </View>
                             <Text style={styles.vehicleText}>Honda TMX 125 (Black)</Text>
-                            <Text style={styles.etaSubtext}>2 mins away</Text>
+                            <Text style={styles.etaSubtext}>{eta} mins away</Text>
                         </View>
                         <View style={styles.bestValueBadge}>
                             <Text style={styles.bestValueText}>BEST VALUE</Text>

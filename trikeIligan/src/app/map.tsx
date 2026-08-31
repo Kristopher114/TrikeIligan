@@ -166,7 +166,7 @@ export default function MapScreen() {
 
     // Forward Geocode (Search Query -> Coordinates)
     useEffect(() => {
-        if (searchQuery.length < 3) {
+        if (!isSearchVisible || searchQuery.length < 3) {
             setSearchResults([]);
             return;
         }
@@ -205,7 +205,7 @@ export default function MapScreen() {
         }, 1000);
 
         return () => clearTimeout(delayDebounceFn);
-    }, [searchQuery]);
+    }, [searchQuery, isSearchVisible]);
 
     const flyToLocation = (lat, lon) => {
         if (webviewRef.current) {
@@ -232,7 +232,17 @@ export default function MapScreen() {
 
             if (params.returnTo) {
                 // We came from the route screen just to pick the pickup on the map
-                router.replace({ pathname: params.returnTo, params: { pickup: mapCenterAddress, dropoff: params.dropoff || '' } });
+                router.replace({
+                    pathname: params.returnTo,
+                    params: {
+                        pickup: mapCenterAddress,
+                        dropoff: params.dropoff || '',
+                        pickupLat: mapCenterCoords.lat,
+                        pickupLon: mapCenterCoords.lon,
+                        dropoffLat: params.dropoffLat,
+                        dropoffLon: params.dropoffLon
+                    }
+                });
                 return;
             }
 
@@ -262,10 +272,30 @@ export default function MapScreen() {
 
             if (params.returnTo) {
                 // We came from the route screen just to pick the dropoff on the map, so go back and pass the dropoff address
-                router.replace({ pathname: params.returnTo, params: { pickup: params.pickup || pickupLocation?.address || '', dropoff: mapCenterAddress } });
+                router.replace({
+                    pathname: params.returnTo,
+                    params: {
+                        pickup: params.pickup || pickupLocation?.address || '',
+                        dropoff: mapCenterAddress,
+                        pickupLat: params.pickupLat,
+                        pickupLon: params.pickupLon,
+                        dropoffLat: mapCenterCoords.lat,
+                        dropoffLon: mapCenterCoords.lon
+                    }
+                });
             } else if (params.mode === 'DESTINATION') {
                 // fallback for our previous fix just in case
-                router.replace({ pathname: '/route', params: { pickup: pickupLocation?.address || '', dropoff: mapCenterAddress } });
+                router.replace({
+                    pathname: '/route',
+                    params: {
+                        pickup: pickupLocation?.address || '',
+                        dropoff: mapCenterAddress,
+                        pickupLat: params.pickupLat,
+                        pickupLon: params.pickupLon,
+                        dropoffLat: mapCenterCoords.lat,
+                        dropoffLon: mapCenterCoords.lon
+                    }
+                });
             } else {
                 alert("Ready to book!\nPickup: " + pickupLocation?.address + "\nDropoff: " + mapCenterAddress);
             }
@@ -350,11 +380,13 @@ export default function MapScreen() {
                             {mapCenterAddress}
                         </Text>
                     </View>
-                    {isReversingLocation ? (
-                        <ActivityIndicator size="small" color="#1B6E45" />
-                    ) : (
-                        <Ionicons name="star-outline" size={24} color="#FFA500" />
-                    )}
+                    <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
+                        {isReversingLocation ? (
+                            <ActivityIndicator size="small" color="#1B6E45" />
+                        ) : (
+                            <Ionicons name="star-outline" size={24} color="#FFA500" />
+                        )}
+                    </View>
                 </View>
 
                 <TouchableOpacity
@@ -517,6 +549,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 16,
         marginBottom: 20,
+        height: 80, // Fixed height to prevent map layout resizing loop
     },
     addressTitle: {
         fontFamily: 'Outfit_600SemiBold',
