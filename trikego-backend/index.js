@@ -172,8 +172,8 @@ app.post('/api/calculate-fare', (req, res) => {
   try {
     const distanceKm = getDistanceFromLatLonInKm(pickupLat, pickupLon, dropLat, dropLon);
 
-    // Pricing logic: Base fare ₱20 for first km, ₱5 for succeeding kms
-    let fare = 30;
+    // Pricing logic: Base fare ₱50 for first km, ₱5 for succeeding kms
+    let fare = 50;
     if (distanceKm > 1) {
       fare += (distanceKm - 1) * 5;
     }
