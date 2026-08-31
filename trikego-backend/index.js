@@ -26,6 +26,11 @@ pool.connect((err, client, release) => {
   }
 });
 
+// Root Endpoint (For cron-job pings to keep the server awake)
+app.get('/', (req, res) => {
+  res.send('TrikeIligan API is awake and running!');
+});
+
 // Status Endpoint
 app.get('/api/status', async (req, res) => {
   try {
