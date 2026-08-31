@@ -142,6 +142,54 @@ app.post('/api/login', async (req, res) => {
     client.release();
   }
 });
+// Haversine distance calculation function
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  const d = R * c; // Distance in km
+  return d;
+}
+
+// Calculate Fare Endpoint
+app.post('/api/calculate-fare', (req, res) => {
+  const { pickupLat, pickupLon, dropLat, dropLon } = req.body;
+
+  if (pickupLat == null || pickupLon == null || dropLat == null || dropLon == null) {
+    return res.status(400).json({ status: 'error', message: 'Missing coordinates' });
+  }
+
+  try {
+    const distanceKm = getDistanceFromLatLonInKm(pickupLat, pickupLon, dropLat, dropLon);
+    
+    // Pricing logic: Base fare ₱20 for first km, ₱5 for succeeding kms
+    let fare = 20;
+    if (distanceKm > 1) {
+      fare += (distanceKm - 1) * 5;
+    }
+
+    // Estimate time (assume average city speed of 20km/h = 3 mins per km)
+    // Add 2 mins base for traffic/boarding
+    const estimatedTimeMins = Math.max(2, Math.round((distanceKm * 3) + 2));
+
+    res.json({
+      status: 'success',
+      data: {
+        distanceKm: distanceKm.toFixed(2),
+        fare: Math.round(fare),
+        estimatedTimeMins
+      }
+    });
+  } catch (error) {
+    console.error('Fare calculation error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to calculate fare' });
+  }
+});
 
 // Start the server
 app.listen(port, '0.0.0.0', () => {
