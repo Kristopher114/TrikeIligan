@@ -94,26 +94,26 @@ export default function RouteScreen() {
 
     const handleMapIconPress = (type) => {
         if (type === 'pickup') {
-            router.push({ 
-                pathname: '/map', 
-                params: { 
-                    mode: 'PICKUP', 
-                    returnTo: '/route', 
+            router.push({
+                pathname: '/map',
+                params: {
+                    mode: 'PICKUP',
+                    returnTo: '/route',
                     dropoff: dropoffQuery,
                     dropoffLat: dropoffCoords?.lat,
                     dropoffLon: dropoffCoords?.lon
-                } 
+                }
             });
         } else {
-            router.push({ 
-                pathname: '/map', 
-                params: { 
-                    mode: 'DESTINATION', 
-                    returnTo: '/route', 
+            router.push({
+                pathname: '/map',
+                params: {
+                    mode: 'DESTINATION',
+                    returnTo: '/route',
                     pickup: pickupQuery,
                     pickupLat: pickupCoords?.lat,
                     pickupLon: pickupCoords?.lon
-                } 
+                }
             });
         }
     };
@@ -141,7 +141,7 @@ export default function RouteScreen() {
 
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ paddingRight: 16 }}>
+                    <TouchableOpacity onPress={() => router.back('/home')} style={{ paddingRight: 16 }}>
                         <Ionicons name="arrow-back" size={24} color="#000" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Your Iligan Route</Text>
@@ -253,13 +253,13 @@ export default function RouteScreen() {
                 {/* Book a Rider Button */}
                 {pickupQuery.trim().length > 0 && dropoffQuery.trim().length > 0 && (
                     <View style={styles.bookButtonContainer}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.bookButton}
                             onPress={() => {
                                 router.push({
                                     pathname: '/rider-selection',
-                                    params: { 
-                                        pickup: pickupQuery, 
+                                    params: {
+                                        pickup: pickupQuery,
                                         dropoff: dropoffQuery,
                                         pickupLat: pickupCoords?.lat,
                                         pickupLon: pickupCoords?.lon,

@@ -36,9 +36,12 @@ export default function LoginScreen() {
       console.log("Login API Response:", data);
 
       if (response.ok) {
-        // Save the name to AsyncStorage for persistence
+        // Save user data to AsyncStorage for persistence
         if (data.user?.fullName) {
           await AsyncStorage.setItem('userFullName', data.user.fullName);
+        }
+        if (data.user?.id) {
+          await AsyncStorage.setItem('userId', data.user.id);
         }
         router.push('/home');
       } else {
@@ -72,10 +75,7 @@ export default function LoginScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backIcon}>←</Text>
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
+          <Text style={styles.backText}>Back</Text>
         </View>
 
         {/* Content */}

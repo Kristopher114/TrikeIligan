@@ -4,13 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import TabBar from '../components/TabBar';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
     const router = useRouter();
     const [fullName, setFullName] = useState('');
-    
+
     const [showName, setShowName] = useState(false);
 
     useEffect(() => {
@@ -69,21 +70,11 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Static Tab Bar (Mock) */}
-                <View style={styles.tabBar}>
-                    <TouchableOpacity style={styles.tabItem}>
-                        <Ionicons name="home" size={24} color="#1B6E45" />
-                        <Text style={[styles.tabText, { color: '#1B6E45' }]}>Home</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.tabItem}>
-                        <MaterialCommunityIcons name="motorbike" size={24} color="#A0A0A0" />
-                        <Text style={[styles.tabText, { color: '#A0A0A0' }]}>Rides</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.tabItem}>
-                        <Ionicons name="person-outline" size={24} color="#A0A0A0" />
-                        <Text style={[styles.tabText, { color: '#A0A0A0' }]}>Profile</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Spacer to push TabBar to bottom */}
+                <View style={{ flex: 1 }} />
+
+                {/* Reusable Tab Bar */}
+                <TabBar activeTab="home" />
 
             </View>
         </SafeAreaView>

@@ -196,6 +196,32 @@ app.post('/api/calculate-fare', (req, res) => {
   }
 });
 
+// Fetch Ride History Endpoint
+app.get('/api/rides/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    const query = `
+      SELECT r.id, r.pickup_address, r.dropoff_address, r.base_fare, r.created_at, r.status,
+             u.full_name as driver_name
+      FROM Rides r
+      LEFT JOIN Users u ON r.driver_id = u.id
+      WHERE r.passenger_id = $1
+      ORDER BY r.created_at DESC
+    `;
+    const result = await client.query(query, [userId]);
+    res.json({
+      status: 'success',
+      rides: result.rows
+    });
+  } catch (error) {
+    console.error('Fetch rides error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch rides' });
+  } finally {
+    client.release();
+  }
+});
+
 // Start the server
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);

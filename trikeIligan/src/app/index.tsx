@@ -2,9 +2,29 @@ import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView } from 'r
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [isCheckingLogin, setIsCheckingLogin] = useState(true);
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const userName = await AsyncStorage.getItem('userFullName');
+        if (userName) {
+          // User is already logged in, redirect to home directly
+          router.replace('/home');
+        } else {
+          setIsCheckingLogin(false);
+        }
+      } catch (e) {
+        setIsCheckingLogin(false);
+      }
+    };
+    checkLoginStatus();
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Outfit_700Bold,
@@ -12,7 +32,7 @@ export default function HomeScreen() {
     Outfit_600SemiBold,
   });
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || isCheckingLogin) {
     return null;
   }
 

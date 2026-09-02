@@ -144,3 +144,18 @@ This document serves as a complete log of everything we accomplished during our 
   - Verified cloud database persistence by re-running the verification script.
   - *Vital Command Run*: `node check-data.js` to successfully retrieve passenger and user records from the Neon PostgreSQL database.
   - Resolved recurrent 60-second fetch timeouts (`java.net.ConnectException`) caused by dynamic IP address changes on the local Windows network. Successfully remapped the frontend API calls in `signup.tsx` and `login.tsx` back to the stable Mobile Hotspot IP address (`192.168.137.1`).
+
+### September 3, 2026
+- **Ride History Feature**:
+  - Implemented a new `/api/rides/:userId` backend endpoint in `index.js` that queries the PostgreSQL `Rides` table and joins with the `Users` table to fetch driver details.
+  - Modified `login.tsx` to capture and persist the `userId` securely in `AsyncStorage` upon successful authentication.
+  - Built out the **Recent Rides** screen (`rides.tsx`) using a `FlatList` to render past rides, displaying the destination, driver name, fare cost, and date/status.
+- **UI & Component Refactoring**:
+  - Abstracted the bottom navigation tab bar into a highly reusable `TabBar.tsx` component.
+  - Integrated `TabBar.tsx` universally across `home.tsx`, `rides.tsx`, and `profile.tsx`, utilizing `flex: 1` spacing to anchor the bar cleanly and consistently to the absolute bottom of all screens.
+  - Cleaned up the `src/components` directory by safely removing unused Expo default boilerplate components (`ui/collapsible.tsx`, `ThemedText.tsx`, etc.).
+- **System Architecture & Monorepo Scaling**:
+  - Successfully scaled the project into a proper **Monorepo** structure.
+  - Generated the `trikeIligan-rider` (Driver app) using `npx create-expo-app` alongside the existing `trikeIligan` (Passenger app) and `trikego-backend`.
+  - Confirmed the integrity of the shared root Git repository to avoid nested-git conflicts, allowing for seamless full-stack deployments to GitHub and Render.
+  - Diagnosed `cron-job.org` 503 HTTP errors, determining them to be temporary deployment downtime rather than crashes, and confirmed a 100% healthy active server connection via PowerShell REST tests.
