@@ -2,6 +2,8 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
@@ -329,7 +331,98 @@ app.get('/api/rides/:userId', async (req, res) => {
   }
 });
 
+// Create HTTP server
+const server = http.createServer(app);
+
+// Setup Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Socket.IO real-time event logic
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  // 1. Driver goes online
+  socket.on('driver_online', (data) => {
+    console.log(`Driver ${data.driverId} is online`);
+    socket.join(`driver_${data.driverId}`);
+    socket.join('available_drivers');
+  });
+
+  // 2. Passenger requests a ride
+  socket.on('passenger_request_ride', (data) => {
+    console.log(`Passenger ${data.passengerId} requested a ride`);
+    // Broadcast the ride offer to all online drivers
+    // Note: In production, we'd use geolocation to find the nearest driver.
+    io.to('available_drivers').emit('ride_offer', {
+      rideId: data.rideId,
+      passengerId: data.passengerId,
+      passengerName: data.passengerName,
+      pickup: data.pickup,
+      dropoff: data.dropoff,
+      fare: data.fare,
+      rating: data.rating
+    });
+  });
+
+  // 3. Driver accepts ride
+  socket.on('driver_accept_ride', (data) => {
+    console.log(`Driver ${data.driverId} accepted ride from Passenger ${data.passengerId}`);
+    
+    // Notify the specific passenger that their ride was accepted
+    io.emit(`ride_accepted_${data.passengerId}`, {
+      driverId: data.driverId,
+      driverName: data.driverName,
+      driverVehicle: data.driverVehicle,
+      driverRating: data.driverRating,
+      rideId: data.rideId
+    });
+    
+    // Link both to a specific active ride room
+    socket.join(`ride_${data.rideId}`);
+  });
+
+  // 4. Driver declines ride
+  socket.on('driver_decline_ride', (data) => {
+    console.log(`Driver ${data.driverId} declined ride from Passenger ${data.passengerId}`);
+    io.emit(`ride_declined_${data.passengerId}`, {
+      driverId: data.driverId
+    });
+  });
+
+  // 5. Driver updates live location during active ride
+  socket.on('driver_update_location', (data) => {
+    // Send location ONLY to the specific passenger connected to this ride room
+    io.to(`ride_${data.rideId}`).emit('driver_location_update', {
+      lat: data.lat,
+      lon: data.lon,
+      heading: data.heading
+    });
+  });
+
+  // 6. Ride status updates (Picked Up, Completed, Cancelled)
+  socket.on('passenger_picked_up', (data) => {
+    io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
+  });
+
+  socket.on('ride_completed', (data) => {
+    io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'completed' });
+  });
+
+  socket.on('cancel_ride', (data) => {
+    io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
 // Start the server
-app.listen(port, '0.0.0.0', () => {
+server.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);
 });
