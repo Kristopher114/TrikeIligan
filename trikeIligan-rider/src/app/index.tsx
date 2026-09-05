@@ -1,98 +1,141 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Dimensions } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+const { height } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const [isCheckingLogin, setIsCheckingLogin] = useState(true);
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const userName = await AsyncStorage.getItem('userFullName');
+        if (userName) {
+          // User is already logged in, redirect to home directly
+          router.replace('/home');
+        } else {
+          setIsCheckingLogin(false);
+        }
+      } catch (e) {
+        setIsCheckingLogin(false);
+      }
+    };
+    checkLoginStatus();
+  }, []);
+
+  const [fontsLoaded] = useFonts({
+    Outfit_700Bold,
+    Outfit_500Medium,
+    Outfit_600SemiBold,
+  });
+
+  if (!fontsLoaded || isCheckingLogin) {
+    return null;
+  }
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <View style={styles.container}>
+        <View style={styles.centerContent}>
+          <View style={styles.iconContainer}>
+            <Image
+              source={require('../../assets/images/tricycle.png')}
+              style={styles.icon}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.title}>TrikeIligan
+          </Text>
+          <Text style={styles.title}>Rider App
+          </Text>
+        </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+        <View style={styles.bottomContainer}>
+          <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login')}>
+            <Text style={styles.loginText}>Log In</Text>
+          </TouchableOpacity>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          <TouchableOpacity style={styles.signupButton} onPress={() => router.push('/signup')}>
+            <Text style={styles.signupText}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    backgroundColor: '#1B6E45',
   },
-  heroSection: {
+  container: {
+    flex: 1,
+    backgroundColor: '#1B6E45',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  centerContent: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    marginBottom: 100, // Make room for the absolute bottom container
+  },
+  iconContainer: {
+    backgroundColor: '#c1e6cf',
+    width: 130,
+    height: 130,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  icon: {
+    width: 80,
+    height: 80,
   },
   title: {
-    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontFamily: 'Outfit_700Bold',
   },
-  code: {
-    textTransform: 'uppercase',
+  bottomContainer: {
+    position: 'absolute',
+    top: height - 180, // Glued to its original position relative to screen height
+    width: '100%',
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    gap: 16,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  loginButton: {
+    width: '100%',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  loginText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Outfit_500Medium',
+  },
+  signupButton: {
+    backgroundColor: '#e0e0e0',
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+
+
+  },
+  signupText: {
+    color: '#26734d',
+    fontSize: 16,
+    fontFamily: 'Outfit_600SemiBold',
   },
 });

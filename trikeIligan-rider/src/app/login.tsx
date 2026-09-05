@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function LoginScreen() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('https://trikeiligan.onrender.com/api/login', {
+      const response = await fetch('https://trikeiligan.onrender.com/api/driver-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,11 +69,12 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.container}
+        bounces={false}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
       >
-
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -119,10 +121,11 @@ export default function LoginScreen() {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-        </View>
+          
+          <View style={{ flex: 1 }} />
 
-        {/* Bottom Button */}
-        <View style={styles.bottomContainer}>
+          {/* Bottom Button */}
+          <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={[styles.loginButton, isSubmitting && { opacity: 0.7 }]}
             onPress={handleLogin}
@@ -136,7 +139,8 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-      </KeyboardAvoidingView>
+        </View>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -147,9 +151,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: '#FFFFFF',
-    justifyContent: 'space-between',
   },
   header: {
     paddingHorizontal: 24,

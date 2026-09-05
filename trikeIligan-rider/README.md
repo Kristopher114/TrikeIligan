@@ -1,56 +1,32 @@
-# Welcome to your Expo app 👋
+# TrikeIligan Rider App - Development Log
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## September 5, 2026
 
-## Get started
+### 1. Production Backend Deployment
 
-1. Install dependencies
+- Successfully deployed the `trikego-backend` Node.js/PostgreSQL server to **Render** (`https://trikeiligan.onrender.com`).
+- Updated the API endpoints in both the **Rider App** and the **Passenger App** (e.g., `login.tsx`, `signup.tsx`) to point to the live Render URL instead of the local Wi-Fi IP address.
 
-   ```bash
-   npm install
-   ```
+### 2. Render Keep-Alive Service
 
-2. Start the app
+- Render's free tier spins down inactive servers after 15 minutes of inactivity, causing a slow "cold start" for users.
+- To fix this, we created a new `keep-alive-service` using Docker.
+- Wrote a `docker-compose.yml` script that runs a lightweight Alpine Linux container in the background to automatically ping the backend's `/api/ping` endpoint every 5 minutes (300 seconds), keeping the server awake 24/7.
 
-   ```bash
-   npx expo start
-   ```
+### 3. Backend & Database Fixes
 
-In the output, you'll find options to open the app in a
+- Fixed an `AsyncStorage` crash ("Native module is null") that was breaking the login flow.
+- Fixed a SQL JOIN query in `check-data.js` to correctly fetch mock Driver data (matching `license_number`, `vehicle_plate`, etc.) from the PostgreSQL database.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 4. Rider App Map Implementation
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **OpenStreetMap Integration:** Replaced the default Google Maps implementation (`react-native-maps`) which was rendering blank on Android due to missing API keys.
+- Implemented a robust `WebView` mapping solution using **Leaflet JS**.
+- Integrated `expo-location` to request foreground location permissions.
+- Connected the GPS to the map so the Driver's custom marker actively tracks and updates their real-world location in real-time.
 
-## Get a fresh project
+### 5. Rider UI Polish
 
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **Side Menu:** Replaced the instant "Logout" behavior on the top-left menu button.
+- Built a custom React Native `<Modal>` that slides in a sleek Side Menu with a dark semi-transparent backdrop.
+- The sidebar now houses the Driver's Profile Header, "Ride History", "Earnings", "Settings", and a dedicated "Logout" button.

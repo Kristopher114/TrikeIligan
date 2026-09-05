@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  keep-alive:
+    image: alpine:latest
+    container_name: render-keep-alive
+    command: /bin/sh -c "while true; do echo "Pinging server..."; wget -qO- https://trikeiligan.onrender.com/api/ping; echo ""; sleep 300; done"
+    restart: unless-stopped
