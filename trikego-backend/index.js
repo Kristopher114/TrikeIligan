@@ -222,7 +222,7 @@ app.post('/api/driver-login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.password_hash, u.role
+      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.rating
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
       WHERE u.email = $1 OR u.phone_number = $1
@@ -246,7 +246,9 @@ app.post('/api/driver-login', async (req, res) => {
       user: {
         id: user.id,
         fullName: user.full_name,
-        role: user.role
+        role: user.role,
+        vehicleModel: user.vehicle_model || 'Trike',
+        rating: user.rating || 5.0
       }
     });
   } catch (error) {

@@ -37,12 +37,17 @@ export default function LoginScreen() {
       console.log("Login API Response:", data);
 
       if (response.ok) {
-        // Save user data to AsyncStorage for persistence
         if (data.user?.fullName) {
           await AsyncStorage.setItem('userFullName', data.user.fullName);
         }
         if (data.user?.id) {
           await AsyncStorage.setItem('userId', data.user.id);
+        }
+        if (data.user?.vehicleModel) {
+          await AsyncStorage.setItem('driverVehicle', data.user.vehicleModel);
+        }
+        if (data.user?.rating) {
+          await AsyncStorage.setItem('driverRating', data.user.rating.toString());
         }
         router.push('/home');
       } else {

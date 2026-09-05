@@ -30,3 +30,15 @@
 - **Side Menu:** Replaced the instant "Logout" behavior on the top-left menu button.
 - Built a custom React Native `<Modal>` that slides in a sleek Side Menu with a dark semi-transparent backdrop.
 - The sidebar now houses the Driver's Profile Header, "Ride History", "Earnings", "Settings", and a dedicated "Logout" button.
+
+### 6. Real-Time Socket.IO Integration (Driver App)
+- **Socket.IO Client Setup**:
+  - Installed `socket.io-client@4.7.2` to ensure stable websocket connections through Expo's Metro bundler.
+  - Established persistent, real-time connections to the live Render backend (`trikeiligan.onrender.com`).
+- **Dynamic Driver Profile & Ride Dispatch**:
+  - Engineered the "GO ONLINE" button to instantly emit the driver's availability to the active driver pool on the backend.
+  - Upgraded the driver login (`login.tsx`) to fetch and securely cache the actual `vehicle_model` and `rating` from the PostgreSQL database into device `AsyncStorage`.
+  - Replaced all hardcoded driver information with the real authenticated driver's data when accepting a ride (`driver_accept_ride`).
+- **Complex UI State Management**:
+  - Built out 5 distinct operational modes for the Driver Map screen: `IDLE`, `ONLINE`, `REQUEST` (15s countdown timer), `ACTIVE RIDE`, and `COMPLETED`.
+  - Implemented a 15-second visual countdown timer and a sleek "New Ride Request" bottom sheet that auto-dismisses if a ride isn't accepted in time.

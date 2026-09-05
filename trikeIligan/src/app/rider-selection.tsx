@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -15,6 +17,81 @@ export default function RiderSelectionScreen() {
     const [fare, setFare] = useState('55.00'); // Default
     const [eta, setEta] = useState('2'); // Default
     const [isCalculating, setIsCalculating] = useState(true);
+
+    const [passengerId, setPassengerId] = useState<string | null>(null);
+    const [passengerName, setPassengerName] = useState<string>('Passenger');
+    const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'accepted'>('idle');
+    const [driverData, setDriverData] = useState<any>(null);
+    const socketRef = useRef<Socket | null>(null);
+
+    // Load user info for socket
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const id = await AsyncStorage.getItem('userId');
+                const name = await AsyncStorage.getItem('userFullName');
+                if (id) {
+                    setPassengerId(id);
+                } else {
+                    setPassengerId(`guest_${Date.now()}`); // Fallback
+                }
+                if (name) {
+                    setPassengerName(name);
+                }
+            } catch (e) {
+                setPassengerId(`guest_${Date.now()}`);
+            }
+        };
+        loadUser();
+    }, []);
+
+    // Socket.io initialization
+    useEffect(() => {
+        if (!passengerId) return;
+
+        const socket = io('https://trikeiligan.onrender.com');
+        socketRef.current = socket;
+
+        // Listen for driver accepting the ride
+        socket.on(`ride_accepted_${passengerId}`, (data) => {
+            console.log('Driver accepted!', data);
+            setDriverData(data);
+            setRideStatus('accepted');
+        });
+        
+        socket.on(`ride_declined_${passengerId}`, () => {
+            alert("Driver declined. Please try booking again.");
+            setRideStatus('idle');
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [passengerId]);
+
+    const handleConfirmBooking = () => {
+        if (!socketRef.current) {
+            alert("Socket is not connected yet!");
+            return;
+        }
+        if (!passengerId) {
+            alert("Passenger ID is missing!");
+            return;
+        }
+        setRideStatus('searching');
+        
+        console.log("Emitting passenger_request_ride for", passengerId);
+        // Emit ride request
+        socketRef.current.emit('passenger_request_ride', {
+            rideId: `ride_${Date.now()}`,
+            passengerId: passengerId,
+            passengerName: passengerName,
+            pickup: 'Custom Pickup', // Ideally from params
+            dropoff: 'Custom Dropoff',
+            fare: fare,
+            rating: 5.0
+        });
+    };
 
     useEffect(() => {
         const fetchFare = async () => {
@@ -97,57 +174,75 @@ export default function RiderSelectionScreen() {
                     <Text style={styles.priceSubtext}>Fixed price</Text>
                 </View>
 
-                {/* Driver Card */}
-                <View style={styles.driverCard}>
-                    {/* Status Badge */}
-                    <View style={styles.badgeRow}>
-                        <View style={styles.statusBadge}>
-                            <Ionicons name="checkmark-circle" size={12} color="#1B6E45" style={{marginRight: 4}} />
-                            <Text style={styles.statusText}>Confirmed</Text>
-                        </View>
-                        <View style={styles.etaBadge}>
-                            <Ionicons name="time-outline" size={12} color="#000" style={{marginRight: 4}} />
-                            <Text style={styles.etaText}>{eta} mins away</Text>
-                        </View>
+                {/* Driver Card or Searching State */}
+                {rideStatus === 'idle' && (
+                    <View style={[styles.driverCard, {alignItems: 'center', padding: 32}]}>
+                        <Ionicons name="location-outline" size={48} color="#1B6E45" style={{marginBottom: 16}} />
+                        <Text style={styles.sheetTitle}>Ready to Book?</Text>
+                        <Text style={styles.sheetSubtitle}>Tap confirm below to find a driver.</Text>
                     </View>
+                )}
 
-                    {/* Driver Profile */}
-                    <View style={styles.driverProfileRow}>
-                        <View style={styles.avatarPlaceholder}>
-                            <Ionicons name="person" size={24} color="#FFF" />
-                        </View>
-                        <View style={styles.driverInfo}>
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                <Text style={styles.driverName}>Danilo G.</Text>
-                                <Ionicons name="star" size={14} color="#FFD700" style={{marginLeft: 4, marginRight: 2}} />
-                                <Text style={styles.ratingText}>4.9</Text>
+                {rideStatus === 'searching' && (
+                    <View style={[styles.driverCard, {alignItems: 'center', padding: 32}]}>
+                        <MaterialCommunityIcons name="radar" size={48} color="#1B6E45" style={{marginBottom: 16}} />
+                        <Text style={styles.sheetTitle}>Finding a Driver...</Text>
+                        <Text style={styles.sheetSubtitle}>Please wait while we connect you to a nearby driver.</Text>
+                    </View>
+                )}
+
+                {rideStatus === 'accepted' && driverData && (
+                    <View style={styles.driverCard}>
+                        {/* Status Badge */}
+                        <View style={styles.badgeRow}>
+                            <View style={styles.statusBadge}>
+                                <Ionicons name="checkmark-circle" size={12} color="#1B6E45" style={{marginRight: 4}} />
+                                <Text style={styles.statusText}>Confirmed</Text>
                             </View>
-                            <Text style={styles.vehicleText}>Honda TMX 125 (Black)</Text>
-                            <Text style={styles.etaSubtext}>{eta} mins away</Text>
-                        </View>
-                        <View style={styles.bestValueBadge}>
-                            <Text style={styles.bestValueText}>BEST VALUE</Text>
-                        </View>
-                    </View>
-
-                    {/* Route Info inside card */}
-                    <View style={styles.routeAcceptedBox}>
-                        <Text style={styles.routeAcceptedText}>Route accepted</Text>
-                        <View style={styles.routeDetailsRow}>
-                            <Ionicons name="location" size={16} color="#1B6E45" />
-                            <View style={{marginLeft: 8}}>
-                                <Text style={styles.routeTitle}>Pickup → Dropoff</Text>
-                                <Text style={styles.routeDesc}>Fixed price • No extra charges</Text>
+                            <View style={styles.etaBadge}>
+                                <Ionicons name="time-outline" size={12} color="#000" style={{marginRight: 4}} />
+                                <Text style={styles.etaText}>{eta} mins away</Text>
                             </View>
                         </View>
-                        
-                        {/* Track Button */}
-                        <TouchableOpacity style={styles.trackButton}>
-                            <Ionicons name="paper-plane" size={16} color="#FFF" style={{marginRight: 8}} />
-                            <Text style={styles.trackButtonText}>Track</Text>
-                        </TouchableOpacity>
+
+                        {/* Driver Profile */}
+                        <View style={styles.driverProfileRow}>
+                            <View style={styles.avatarPlaceholder}>
+                                <Ionicons name="person" size={24} color="#FFF" />
+                            </View>
+                            <View style={styles.driverInfo}>
+                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                    <Text style={styles.driverName}>{driverData.driverName || 'Driver'}</Text>
+                                    <Ionicons name="star" size={14} color="#FFD700" style={{marginLeft: 4, marginRight: 2}} />
+                                    <Text style={styles.ratingText}>{driverData.driverRating || '4.9'}</Text>
+                                </View>
+                                <Text style={styles.vehicleText}>{driverData.driverVehicle || 'Trike'}</Text>
+                                <Text style={styles.etaSubtext}>{eta} mins away</Text>
+                            </View>
+                            <View style={styles.bestValueBadge}>
+                                <Text style={styles.bestValueText}>BEST VALUE</Text>
+                            </View>
+                        </View>
+
+                        {/* Route Info inside card */}
+                        <View style={styles.routeAcceptedBox}>
+                            <Text style={styles.routeAcceptedText}>Route accepted</Text>
+                            <View style={styles.routeDetailsRow}>
+                                <Ionicons name="location" size={16} color="#1B6E45" />
+                                <View style={{marginLeft: 8}}>
+                                    <Text style={styles.routeTitle}>Pickup → Dropoff</Text>
+                                    <Text style={styles.routeDesc}>Fixed price • No extra charges</Text>
+                                </View>
+                            </View>
+                            
+                            {/* Track Button */}
+                            <TouchableOpacity style={styles.trackButton}>
+                                <Ionicons name="paper-plane" size={16} color="#FFF" style={{marginRight: 8}} />
+                                <Text style={styles.trackButtonText}>Track</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
+                )}
 
                 {/* Payment Row */}
                 <View style={styles.paymentRow}>
@@ -161,9 +256,16 @@ export default function RiderSelectionScreen() {
                 </View>
 
                 {/* Confirm Button */}
-                <TouchableOpacity style={styles.confirmButton}>
-                    <Text style={styles.confirmButtonText}>Confirm Booking</Text>
-                </TouchableOpacity>
+                {rideStatus === 'idle' && (
+                    <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmBooking}>
+                        <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+                    </TouchableOpacity>
+                )}
+                {rideStatus === 'searching' && (
+                    <TouchableOpacity style={[styles.confirmButton, {backgroundColor: '#757575'}]} disabled>
+                        <Text style={styles.confirmButtonText}>Searching...</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Cancel Button */}
                 <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
