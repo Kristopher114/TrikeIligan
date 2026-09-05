@@ -51,6 +51,11 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// Ping Endpoint
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({ status: 'success', message: 'Pong!' });
+});
+
 // Signup Endpoint
 app.post('/api/signup', async (req, res) => {
   const { fullName, email, phoneNumber, password, username } = req.body;
