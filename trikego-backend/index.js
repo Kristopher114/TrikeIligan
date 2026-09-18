@@ -326,90 +326,116 @@ app.get('/api/wallet/balance/:userId', async (req, res) => {
   }
 });
 
-// POST Topup via PayMongo
-app.post('/api/wallet/topup', async (req, res) => {
+// Helper to get PayPal Access Token
+async function getPayPalAccessToken() {
+  const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const response = await axios.post('https://api-m.sandbox.paypal.com/v1/oauth2/token', 'grant_type=client_credentials', {
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+  return response.data.access_token;
+}
+
+// POST Create PayPal Order
+app.post('/api/wallet/paypal/create-order', async (req, res) => {
   const { userId, amount } = req.body;
   if (!userId || !amount || amount <= 0) {
     return res.status(400).json({ status: 'error', message: 'Invalid topup amount' });
   }
 
   try {
-    // PayMongo Checkout API (Payment Links)
-    const options = {
-      method: 'POST',
-      url: 'https://api.paymongo.com/v1/links',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        authorization: `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-      },
-      data: {
-        data: {
-          attributes: {
-            amount: Math.round(amount * 100), // convert to centavos
-            description: 'TrikeGo Wallet Topup',
-            remarks: `Topup for user ${userId}`
-          }
-        }
+    const accessToken = await getPayPalAccessToken();
+    const orderData = {
+      intent: 'CAPTURE',
+      purchase_units: [{
+        amount: {
+          currency_code: 'PHP',
+          value: amount.toString()
+        },
+        description: `TrikeGo Wallet Topup`,
+        custom_id: userId.toString()
+      }],
+      application_context: {
+        return_url: 'trikeiligan://paypal-return',
+        cancel_url: 'trikeiligan://paypal-cancel'
       }
     };
 
-    const response = await axios.request(options);
-    const checkoutUrl = response.data.data.attributes.checkout_url;
-    const paymongoId = response.data.data.id;
+    const response = await axios.post('https://api-m.sandbox.paypal.com/v2/checkout/orders', orderData, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    // Log pending transaction
-    const client = await pool.connect();
-    try {
-      await client.query(`
-        INSERT INTO Transactions (user_id, amount, transaction_type, status, paymongo_id)
-        VALUES ($1, $2, 'TOPUP', 'PENDING', $3)
-      `, [userId, amount, paymongoId]);
-    } finally {
-      client.release();
-    }
+    const orderId = response.data.id;
+    const approveLink = response.data.links.find(l => l.rel === 'approve').href;
 
-    res.json({ status: 'success', checkoutUrl });
+    res.json({ status: 'success', checkoutUrl: approveLink, orderId });
   } catch (error) {
-    console.error('PayMongo topup error:', error.response ? error.response.data : error.message);
+    console.error('PayPal create order error:', error.response ? error.response.data : error.message);
     res.status(500).json({ status: 'error', message: 'Failed to initiate topup' });
   }
 });
 
-// POST Webhook from PayMongo
-app.post('/api/webhooks/paymongo', async (req, res) => {
-  // PayMongo sends webhooks for 'link.payment.paid'
-  const event = req.body.data;
+// POST Capture PayPal Order
+app.post('/api/wallet/paypal/capture-order', async (req, res) => {
+  const { orderId } = req.body;
   
-  if (event && event.type === 'event' && event.attributes.type === 'link.payment.paid') {
-    const paymongoId = event.attributes.data.attributes.link_id; // the id of the link we created
-    
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Find the pending transaction
-      const txResult = await client.query('SELECT id, user_id, amount, status FROM Transactions WHERE paymongo_id = $1', [paymongoId]);
-      if (txResult.rows.length > 0 && txResult.rows[0].status === 'PENDING') {
-        const tx = txResult.rows[0];
-        
-        // Update transaction status
-        await client.query("UPDATE Transactions SET status = 'COMPLETED' WHERE id = $1", [tx.id]);
-        
-        // Update user balance
-        await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [tx.amount, tx.user_id]);
-      }
-      
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error('Webhook processing error:', err);
-    } finally {
-      client.release();
-    }
+  if (!orderId) {
+    return res.status(400).json({ status: 'error', message: 'Order ID is required' });
   }
 
-  res.status(200).send('OK');
+  try {
+    const accessToken = await getPayPalAccessToken();
+    const response = await axios.post(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`, {}, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.data.status === 'COMPLETED') {
+      const amount = parseFloat(response.data.purchase_units[0].payments.captures[0].amount.value);
+      const userId = response.data.purchase_units[0].custom_id;
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        // Ensure this transaction wasn't already recorded
+        const txCheck = await client.query('SELECT id FROM Transactions WHERE paymongo_id = $1', [orderId]);
+        
+        if (txCheck.rows.length === 0) {
+          // Record transaction (reusing paymongo_id column for paypal order id)
+          await client.query(`
+            INSERT INTO Transactions (user_id, amount, transaction_type, status, paymongo_id)
+            VALUES ($1, $2, 'TOPUP', 'COMPLETED', $3)
+          `, [userId, amount, orderId]);
+          
+          // Update user balance
+          await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [amount, userId]);
+        }
+        
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Database transaction error:', err);
+        return res.status(500).json({ status: 'error', message: 'Database error' });
+      } finally {
+        client.release();
+      }
+
+      res.json({ status: 'success', message: 'Topup successful' });
+    } else {
+      res.status(400).json({ status: 'error', message: 'Payment not completed' });
+    }
+  } catch (error) {
+    console.error('PayPal capture error:', error.response ? error.response.data : error.message);
+    res.status(500).json({ status: 'error', message: 'Failed to capture payment' });
+  }
 });
 
 // Fetch Ride History Endpoint
