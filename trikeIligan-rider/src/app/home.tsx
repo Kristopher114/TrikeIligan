@@ -96,7 +96,7 @@ export default function RiderHome() {
     const [driverId, setDriverId] = useState<string>('');
     const [driverName, setDriverName] = useState<string>('');
     const [driverVehicle, setDriverVehicle] = useState<string>('');
-    const [driverRating, setDriverRating] = useState('5.0');
+    const [driverRating, setDriverRating] = useState('');
     const [vehicleType, setVehicleType] = useState('');
 
     // Refs for socket callbacks to avoid stale state closures
@@ -433,7 +433,7 @@ export default function RiderHome() {
                             <Text style={styles.passengerName}>{currentRideOffer?.passengerName || 'Unknown Passenger'}</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Ionicons name="star" size={12} color="#F59E0B" />
-                                <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • Cash Payment</Text>
+                                <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • {currentRideOffer?.paymentMethod === 'WALLET' ? 'Wallet Payment' : 'Cash Payment'}</Text>
                             </View>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
@@ -494,7 +494,7 @@ export default function RiderHome() {
                             <Text style={styles.passengerName}>{currentRideOffer?.passengerName || 'Unknown Passenger'}</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Ionicons name="star" size={12} color="#F59E0B" />
-                                <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • Cash Payment</Text>
+                                <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • {currentRideOffer?.paymentMethod === 'WALLET' ? 'Wallet Payment' : 'Cash Payment'}</Text>
                             </View>
                         </View>
                         <View style={styles.contactButtons}>
@@ -532,7 +532,7 @@ export default function RiderHome() {
 
                     <Text style={styles.totalFare}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                     <View style={styles.paymentModePill}>
-                        <Text style={styles.paymentModeText}>Payment Mode: Cash</Text>
+                        <Text style={styles.paymentModeText}>Payment Mode: {currentRideOffer?.paymentMethod === 'WALLET' ? 'Wallet (Auto-paid)' : 'Cash'}</Text>
                     </View>
 
                     <View style={{ width: '100%', height: 1, backgroundColor: '#EEE', marginVertical: 20 }} />
@@ -550,7 +550,19 @@ export default function RiderHome() {
                         placeholderTextColor="#999"
                     />
 
-                    <TouchableOpacity style={styles.btnConfirmPayment} onPress={() => { setRideState('idle'); setIsOnline(true); }}>
+                    <TouchableOpacity style={styles.btnConfirmPayment} onPress={() => { 
+                        if (socketRef.current && currentRideOffer) {
+                            socketRef.current.emit('ride_completed', {
+                                rideId: currentRideOffer.rideId,
+                                driverId: driverId,
+                                passengerId: currentRideOffer.passengerId,
+                                paymentMethod: currentRideOffer.paymentMethod || 'CASH',
+                                fare: currentRideOffer.fare
+                            });
+                        }
+                        setRideState('idle'); 
+                        setIsOnline(true); 
+                    }}>
                         <Text style={styles.btnConfirmPaymentText}>CONFIRM PAYMENT & RATE</Text>
                     </TouchableOpacity>
                 </View>
@@ -615,7 +627,7 @@ export default function RiderHome() {
                             <View style={styles.menuProfilePic}>
                                 <Ionicons name="person" size={32} color="#FFF" />
                             </View>
-                            <Text style={styles.menuDriverName}>My Profile</Text>
+                            <Text style={styles.menuDriverName}>{driverName}</Text>
                             <Text style={styles.menuDriverSubtitle}>
                                 {vehicleType === 'TRICYCLE' ? 'Trike Driver' : 'Single Vehicle Driver'}
                             </Text>

@@ -124,3 +124,21 @@ This document serves as a complete log of everything we accomplished during our 
   - Replaced the hardcoded driver profile with real-time dynamic data directly from the driver accepting the ride.
   - Implemented the "Finding a Driver..." radar UI, which listens for the `ride_accepted_<userId>` event from the backend.
   - Automatically parses the incoming driver's `driverName`, `driverVehicle`, and `driverRating` straight from the PostgreSQL database through the Socket and displays it on the "Ride Confirmed" screen.
+
+### September 18-19, 2026 - Wallet Top-Up System & PayPal Integration
+- **Wallet Architecture**: 
+  - Designed the `wallet_balance` field in the PostgreSQL `Users` table and built a dedicated `Transactions` table to track top-ups.
+  - Implemented `/api/wallet/balance/:userId` on the backend to dynamically fetch the user's available funds.
+- **Payment Gateway Migration (PayMongo -> PayPal)**:
+  - Initially built the top-up flow using PayMongo's Payment Links API.
+  - Encountered sandbox limitations ("no payment methods available") due to unverified account restrictions.
+  - Completely migrated the backend architecture to the **PayPal Sandbox REST API** (`v2/checkout/orders`).
+  - Added secure `/api/wallet/paypal/create-order` and `/api/wallet/paypal/capture-order` backend endpoints.
+- **Frontend Deep-Linking & Auth Sessions**:
+  - Implemented `expo-web-browser`'s `openAuthSessionAsync` in `home.tsx` to securely pop open a PayPal login overlay.
+  - Configured custom URL schemes (`trikeiligan://home`) so that upon a successful PayPal checkout, the browser seamlessly redirects the user back into the app and triggers the backend capture event to instantly update their wallet balance.
+  - Fixed a critical Expo Router "Unmatched Route" bug by properly handling the deep-link redirect back to the home screen.
+- **Vehicle Type Integration**:
+  - Connected the 'Single' and 'Trike' buttons on the Home screen to pass the `vehicleType` parameter to the booking flow and Socket.IO event, ensuring passengers only request the specific vehicle they want.
+- **Network Resolution**:
+  - Fixed a severe `SyntaxError: JSON Parse error: Unexpected character: N` crash in the Passenger app caused by incorrect API fetch URLs pointing to a non-existent domain (`trikego-backend.onrender.com`). Corrected all endpoints to the live `trikeiligan.onrender.com` server.

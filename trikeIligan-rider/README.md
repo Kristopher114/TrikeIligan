@@ -42,3 +42,9 @@
 - **Complex UI State Management**:
   - Built out 5 distinct operational modes for the Driver Map screen: `IDLE`, `ONLINE`, `REQUEST` (15s countdown timer), `ACTIVE RIDE`, and `COMPLETED`.
   - Implemented a 15-second visual countdown timer and a sleek "New Ride Request" bottom sheet that auto-dismisses if a ride isn't accepted in time.
+
+### September 18-19, 2026 - Vehicle Classification & Ride Filtering
+- **Vehicle Type Implementation**:
+  - Upgraded the database schema to classify every driver with a specific `vehicle_type` ('SINGLE' or 'TRICYCLE').
+  - Modified the backend Socket.IO dispatch logic (`passenger_request_ride`) to automatically filter available drivers. 
+  - Drivers will now *only* receive a `new_ride_request` popup if their registered vehicle type perfectly matches the passenger's requested vehicle type.

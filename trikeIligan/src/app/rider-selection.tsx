@@ -23,6 +23,8 @@ export default function RiderSelectionScreen() {
     const [passengerName, setPassengerName] = useState<string>('Passenger');
     const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'accepted'>('idle');
     const [driverData, setDriverData] = useState<any>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
+    const [walletBalance, setWalletBalance] = useState<number>(0);
     const socketRef = useRef<Socket | null>(null);
 
     // Load user info for socket
@@ -33,6 +35,15 @@ export default function RiderSelectionScreen() {
                 const name = await AsyncStorage.getItem('userFullName');
                 if (id) {
                     setPassengerId(id);
+                    // Fetch balance
+                    fetch(`https://trikeiligan.onrender.com/api/wallet/balance/${id}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                setWalletBalance(parseFloat(data.balance));
+                            }
+                        })
+                        .catch(err => console.error("Balance fetch error", err));
                 } else {
                     setPassengerId(`guest_${Date.now()}`); // Fallback
                 }
@@ -97,8 +108,22 @@ export default function RiderSelectionScreen() {
             dropoffLon: params.dropoffLon,
             vehicleType: params.vehicleType || 'TRICYCLE',
             fare: fare,
-            rating: 5.0
+            rating: 5.0,
+            paymentMethod: paymentMethod
         });
+    };
+
+    const togglePaymentMethod = () => {
+        if (paymentMethod === 'CASH') {
+            const fareNum = parseFloat(fare);
+            if (walletBalance < fareNum) {
+                alert(`Insufficient wallet balance (₱${walletBalance.toFixed(2)}). Please top up first.`);
+                return;
+            }
+            setPaymentMethod('WALLET');
+        } else {
+            setPaymentMethod('CASH');
+        }
     };
 
     useEffect(() => {
@@ -325,15 +350,17 @@ export default function RiderSelectionScreen() {
                 )}
 
                 {/* Payment Row */}
-                <View style={styles.paymentRow}>
+                <TouchableOpacity style={styles.paymentRow} onPress={togglePaymentMethod} disabled={rideStatus !== 'idle'}>
                     <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                        <Ionicons name="cash-outline" size={20} color="#1B6E45" />
-                        <Text style={styles.paymentText}>Cash Payment</Text>
+                        <Ionicons name={paymentMethod === 'CASH' ? 'cash-outline' : 'wallet-outline'} size={20} color="#1B6E45" />
+                        <Text style={styles.paymentText}>
+                            {paymentMethod === 'CASH' ? 'Cash Payment' : 'Wallet Payment'}
+                        </Text>
                     </View>
-                    <TouchableOpacity>
-                        <Text style={styles.promoText}>Promo Applied {'>'}</Text>
-                    </TouchableOpacity>
-                </View>
+                    <Text style={styles.promoText}>
+                        {paymentMethod === 'WALLET' ? `Bal: ₱${walletBalance.toFixed(2)}` : 'Change >'}
+                    </Text>
+                </TouchableOpacity>
 
                 {/* Confirm Button */}
                 {rideStatus === 'idle' && (
