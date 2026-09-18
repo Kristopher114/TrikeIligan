@@ -7,16 +7,17 @@ const pool = new Pool({
 
 const createTables = async () => {
   const sql = `
-    DROP TABLE IF EXISTS Rides, Passengers, Drivers, Admins, Users CASCADE;
+    DROP TABLE IF EXISTS Transactions, Rides, Passengers, Drivers, Admins, Users CASCADE;
 
     -- 1. Core Users Table (Handles all shared auth and profile data)
     CREATE TABLE IF NOT EXISTS Users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         full_name VARCHAR(100) NOT NULL,
-        phone_number VARCHAR(20) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
+        phone_number VARCHAR(20) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL CHECK (role IN ('PASSENGER', 'DRIVER', 'ADMIN')),
+        wallet_balance DECIMAL(10, 2) DEFAULT 0.00,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -55,12 +56,23 @@ const createTables = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         passenger_id UUID REFERENCES Users(id),
         driver_id UUID REFERENCES Users(id),
-        status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'ONGOING', 'COMPLETED', 'CANCELLED')),
+        status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
         pickup_address TEXT NOT NULL,
         dropoff_address TEXT NOT NULL,
         base_fare DECIMAL(10, 2) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
+    );
+
+    -- 6. Transactions Table (For Topups, Payments, Withdrawals)
+    CREATE TABLE IF NOT EXISTS Transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES Users(id) ON DELETE CASCADE,
+        amount DECIMAL(10, 2) NOT NULL,
+        transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('TOPUP', 'FARE_PAYMENT', 'EARNING', 'WITHDRAWAL')),
+        status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED')),
+        paymongo_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
 

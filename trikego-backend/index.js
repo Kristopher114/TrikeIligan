@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -309,6 +310,108 @@ app.post('/api/calculate-fare', (req, res) => {
   }
 });
 
+// GET Wallet Balance
+app.get('/api/wallet/balance/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT wallet_balance FROM Users WHERE id = $1', [userId]);
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'User not found' });
+    res.json({ status: 'success', balance: result.rows[0].wallet_balance });
+  } catch (error) {
+    console.error('Fetch balance error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch balance' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST Topup via PayMongo
+app.post('/api/wallet/topup', async (req, res) => {
+  const { userId, amount } = req.body;
+  if (!userId || !amount || amount <= 0) {
+    return res.status(400).json({ status: 'error', message: 'Invalid topup amount' });
+  }
+
+  try {
+    // PayMongo Checkout API (Payment Links)
+    const options = {
+      method: 'POST',
+      url: 'https://api.paymongo.com/v1/links',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
+      },
+      data: {
+        data: {
+          attributes: {
+            amount: Math.round(amount * 100), // convert to centavos
+            description: 'TrikeGo Wallet Topup',
+            remarks: `Topup for user ${userId}`
+          }
+        }
+      }
+    };
+
+    const response = await axios.request(options);
+    const checkoutUrl = response.data.data.attributes.checkout_url;
+    const paymongoId = response.data.data.id;
+
+    // Log pending transaction
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        INSERT INTO Transactions (user_id, amount, transaction_type, status, paymongo_id)
+        VALUES ($1, $2, 'TOPUP', 'PENDING', $3)
+      `, [userId, amount, paymongoId]);
+    } finally {
+      client.release();
+    }
+
+    res.json({ status: 'success', checkoutUrl });
+  } catch (error) {
+    console.error('PayMongo topup error:', error.response ? error.response.data : error.message);
+    res.status(500).json({ status: 'error', message: 'Failed to initiate topup' });
+  }
+});
+
+// POST Webhook from PayMongo
+app.post('/api/webhooks/paymongo', async (req, res) => {
+  // PayMongo sends webhooks for 'link.payment.paid'
+  const event = req.body.data;
+  
+  if (event && event.type === 'event' && event.attributes.type === 'link.payment.paid') {
+    const paymongoId = event.attributes.data.attributes.link_id; // the id of the link we created
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Find the pending transaction
+      const txResult = await client.query('SELECT id, user_id, amount, status FROM Transactions WHERE paymongo_id = $1', [paymongoId]);
+      if (txResult.rows.length > 0 && txResult.rows[0].status === 'PENDING') {
+        const tx = txResult.rows[0];
+        
+        // Update transaction status
+        await client.query("UPDATE Transactions SET status = 'COMPLETED' WHERE id = $1", [tx.id]);
+        
+        // Update user balance
+        await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [tx.amount, tx.user_id]);
+      }
+      
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Webhook processing error:', err);
+    } finally {
+      client.release();
+    }
+  }
+
+  res.status(200).send('OK');
+});
+
 // Fetch Ride History Endpoint
 app.get('/api/rides/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -376,7 +479,8 @@ io.on('connection', (socket) => {
       dropoffLat: data.dropoffLat,
       dropoffLon: data.dropoffLon,
       fare: data.fare,
-      rating: data.rating
+      rating: data.rating,
+      paymentMethod: data.paymentMethod || 'CASH'
     });
   });
 
@@ -420,8 +524,43 @@ io.on('connection', (socket) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
   });
 
-  socket.on('ride_completed', (data) => {
+  socket.on('ride_completed', async (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'completed' });
+    
+    // Process wallet transaction if payment method is WALLET
+    if (data.paymentMethod === 'WALLET' && data.passengerId && data.driverId && data.fare) {
+      const fareAmount = parseFloat(data.fare);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        // Deduct from passenger
+        await client.query('UPDATE Users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [fareAmount, data.passengerId]);
+        
+        // Credit to driver
+        await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [fareAmount, data.driverId]);
+        
+        // Log transaction for passenger
+        await client.query(`
+          INSERT INTO Transactions (user_id, amount, transaction_type, status)
+          VALUES ($1, $2, 'PAYMENT', 'COMPLETED')
+        `, [data.passengerId, -fareAmount]);
+        
+        // Log transaction for driver
+        await client.query(`
+          INSERT INTO Transactions (user_id, amount, transaction_type, status)
+          VALUES ($1, $2, 'PAYMENT', 'COMPLETED')
+        `, [data.driverId, fareAmount]);
+        
+        await client.query('COMMIT');
+        console.log(`Wallet payment processed for ride ${data.rideId}`);
+      } catch (e) {
+        await client.query('ROLLBACK');
+        console.error('Wallet payment error:', e);
+      } finally {
+        client.release();
+      }
+    }
   });
 
   socket.on('cancel_ride', (data) => {
