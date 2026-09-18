@@ -366,6 +366,10 @@ io.on('connection', (socket) => {
       passengerName: data.passengerName,
       pickup: data.pickup,
       dropoff: data.dropoff,
+      pickupLat: data.pickupLat,
+      pickupLon: data.pickupLon,
+      dropoffLat: data.dropoffLat,
+      dropoffLon: data.dropoffLon,
       fare: data.fare,
       rating: data.rating
     });
