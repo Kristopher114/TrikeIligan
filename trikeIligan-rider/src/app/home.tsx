@@ -89,7 +89,7 @@ export default function RiderHome() {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [timer, setTimer] = useState(15);
     const [currentRideOffer, setCurrentRideOffer] = useState<any>(null);
-    const [currentLocation, setCurrentLocation] = useState<{lat: number, lon: number} | null>(null);
+    const [currentLocation, setCurrentLocation] = useState<{ lat: number, lon: number } | null>(null);
     const [liveEta, setLiveEta] = useState<number>(5);
     const socketRef = useRef<Socket | null>(null);
 
@@ -119,7 +119,7 @@ export default function RiderHome() {
                 const vehicle = await AsyncStorage.getItem('driverVehicle');
                 const vType = await AsyncStorage.getItem('driverVehicleType');
                 const rating = await AsyncStorage.getItem('driverRating');
-                
+
                 if (id) setDriverId(id);
                 if (name) setDriverName(name);
                 if (vehicle) setDriverVehicle(vehicle);
@@ -165,9 +165,9 @@ export default function RiderHome() {
                 return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             }
             const distance = getDistanceFromLatLonInKm(
-                currentLocation.lat, 
-                currentLocation.lon, 
-                parseFloat(currentRideOffer.pickupLat), 
+                currentLocation.lat,
+                currentLocation.lon,
+                parseFloat(currentRideOffer.pickupLat),
                 parseFloat(currentRideOffer.pickupLon)
             );
             const eta = Math.max(1, Math.round((distance * 3) + 2)); // 3 mins per km + 2 min base
@@ -245,20 +245,20 @@ export default function RiderHome() {
 
     const handleNavigate = () => {
         if (!currentRideOffer) return;
-        
+
         let url = '';
-        
+
         // If we have both pickup and dropoff coordinates, open Maps in routing/directions mode
         if (currentRideOffer.pickupLat && currentRideOffer.pickupLon && currentRideOffer.dropoffLat && currentRideOffer.dropoffLon) {
             const origin = `${currentRideOffer.pickupLat},${currentRideOffer.pickupLon}`;
             const destination = `${currentRideOffer.dropoffLat},${currentRideOffer.dropoffLon}`;
-            
+
             if (Platform.OS === 'ios') {
                 url = `http://maps.apple.com/?saddr=${origin}&daddr=${destination}&dirflg=d`;
             } else {
                 url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
             }
-        } 
+        }
         // Fallback: just open the pickup location if dropoff is missing
         else if (currentRideOffer.pickupLat && currentRideOffer.pickupLon) {
             const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' }) || 'geo:0,0?q=';
@@ -268,7 +268,7 @@ export default function RiderHome() {
                 ios: `${scheme}${label}@${latLng}`,
                 android: `${scheme}${latLng}(${label})`
             }) || `${scheme}${latLng}(${label})`;
-        } 
+        }
         // Fallback: text query
         else {
             const query = encodeURIComponent(currentRideOffer.pickup || 'Iligan City');
@@ -277,7 +277,7 @@ export default function RiderHome() {
                 android: `geo:0,0?q=${query}`
             }) || `geo:0,0?q=${query}`;
         }
-        
+
         if (url) {
             Linking.canOpenURL(url).then(supported => {
                 if (supported) {
@@ -296,7 +296,7 @@ export default function RiderHome() {
     const toggleOnlineStatus = () => {
         const newStatus = !isOnline;
         setIsOnline(newStatus);
-        
+
         if (newStatus && socketRef.current) {
             // Emulate driver ID and go online
             socketRef.current.emit('driver_online', { driverId: driverId, vehicleType: vehicleType });
@@ -305,7 +305,7 @@ export default function RiderHome() {
 
     const handleAcceptRide = () => {
         if (!currentRideOffer || !socketRef.current) return;
-        
+
         // Notify backend that driver accepted
         socketRef.current.emit('driver_accept_ride', {
             driverId: driverId,
@@ -330,7 +330,7 @@ export default function RiderHome() {
     return (
         <View style={styles.container}>
             <StatusBar style="dark" />
-            
+
             <WebView
                 ref={webviewRef}
                 source={{ html: leafletHTML }}
@@ -356,7 +356,7 @@ export default function RiderHome() {
                         <Ionicons name="notifications-outline" size={24} color="#333" />
                     </TouchableOpacity>
                 </View>
-                
+
                 {/* Float Navigate Button during active ride */}
                 {rideState === 'active' && (
                     <TouchableOpacity style={styles.navigateFloatingBtn} onPress={handleNavigate}>
@@ -384,20 +384,20 @@ export default function RiderHome() {
             {rideState === 'idle' && (
                 <View style={styles.bottomSheet}>
                     <View style={styles.sheetHandle} />
-                    
+
                     <View style={styles.statusContainer}>
                         <View style={[styles.statusDot, { backgroundColor: isOnline ? '#1B6E45' : '#D32F2F' }]} />
                         <Text style={styles.statusTitle}>
                             You are currently {isOnline ? 'Online' : 'Offline'}
                         </Text>
                     </View>
-                    
+
                     <Text style={styles.statusSubtitle}>
                         {isOnline ? 'Finding nearby passengers...' : 'Tap below to start earning.'}
                     </Text>
 
-                    <TouchableOpacity 
-                        style={[styles.toggleButton, { backgroundColor: isOnline ? '#1B6E45' : '#1B6E45' }]} 
+                    <TouchableOpacity
+                        style={[styles.toggleButton, { backgroundColor: isOnline ? '#1B6E45' : '#1B6E45' }]}
                         onPress={toggleOnlineStatus}
                     >
                         <Text style={styles.toggleButtonText}>
@@ -411,14 +411,14 @@ export default function RiderHome() {
             {rideState === 'request' && (
                 <View style={styles.bottomSheet}>
                     <View style={styles.sheetHandle} />
-                    
+
                     <View style={styles.requestHeaderRow}>
                         <View style={styles.requestBadge}>
-                            <Ionicons name="scan-outline" size={16} color="#1B6E45" style={{marginRight: 4}} />
+                            <Ionicons name="scan-outline" size={16} color="#1B6E45" style={{ marginRight: 4 }} />
                             <Text style={styles.requestBadgeText}>NEW RIDE REQUEST</Text>
                         </View>
                         <View style={styles.timerBadge}>
-                            <Ionicons name="time-outline" size={14} color="#FFF" style={{marginRight: 4}} />
+                            <Ionicons name="time-outline" size={14} color="#FFF" style={{ marginRight: 4 }} />
                             <Text style={styles.timerText}>{timer}s</Text>
                         </View>
                     </View>
@@ -429,14 +429,14 @@ export default function RiderHome() {
                                 {currentRideOffer?.passengerName ? currentRideOffer.passengerName.substring(0, 2).toUpperCase() : 'MS'}
                             </Text>
                         </View>
-                        <View style={{flex: 1}}>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.passengerName}>{currentRideOffer?.passengerName || 'Unknown Passenger'}</Text>
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Ionicons name="star" size={12} color="#F59E0B" />
                                 <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • Cash Payment</Text>
                             </View>
                         </View>
-                        <View style={{alignItems: 'flex-end'}}>
+                        <View style={{ alignItems: 'flex-end' }}>
                             <Text style={styles.farePrice}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                             <Text style={styles.fareLabel}>Estimated Fare</Text>
                         </View>
@@ -444,7 +444,7 @@ export default function RiderHome() {
 
                     <View style={styles.locationsContainer}>
                         <View style={styles.locationItem}>
-                            <View style={[styles.locDot, {backgroundColor: '#1B6E45'}]} />
+                            <View style={[styles.locDot, { backgroundColor: '#1B6E45' }]} />
                             <View>
                                 <Text style={styles.locLabel}>PICKUP LOCATION</Text>
                                 <Text style={styles.locValue} numberOfLines={1}>{currentRideOffer?.pickup || 'Robinsons Mall, Iligan City'}</Text>
@@ -452,7 +452,7 @@ export default function RiderHome() {
                         </View>
                         <View style={styles.locLine} />
                         <View style={styles.locationItem}>
-                            <View style={[styles.locDot, {backgroundColor: '#F44336'}]} />
+                            <View style={[styles.locDot, { backgroundColor: '#F44336' }]} />
                             <View>
                                 <Text style={styles.locLabel}>DROPOFF LOCATION</Text>
                                 <Text style={styles.locValue} numberOfLines={1}>{currentRideOffer?.dropoff || "St. Michael's College"}</Text>
@@ -475,9 +475,9 @@ export default function RiderHome() {
             {rideState === 'active' && (
                 <View style={styles.bottomSheet}>
                     <View style={styles.sheetHandle} />
-                    
+
                     <View style={styles.activeRideHeader}>
-                        <View style={[styles.locDot, {backgroundColor: '#1B6E45', marginTop: 4}]} />
+                        <View style={[styles.locDot, { backgroundColor: '#1B6E45', marginTop: 4 }]} />
                         <View>
                             <Text style={styles.activeTitle}>Pick up passenger in {liveEta} mins</Text>
                             <Text style={styles.activeSubtitle}>Heading to {currentRideOffer?.pickup || 'Pickup Location'}</Text>
@@ -490,9 +490,9 @@ export default function RiderHome() {
                                 {currentRideOffer?.passengerName ? currentRideOffer.passengerName.substring(0, 2).toUpperCase() : 'MS'}
                             </Text>
                         </View>
-                        <View style={{flex: 1}}>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.passengerName}>{currentRideOffer?.passengerName || 'Unknown Passenger'}</Text>
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Ionicons name="star" size={12} color="#F59E0B" />
                                 <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • Cash Payment</Text>
                             </View>
@@ -505,7 +505,7 @@ export default function RiderHome() {
                                 <Ionicons name="call-outline" size={20} color="#1B6E45" />
                             </TouchableOpacity>
                         </View>
-                        <View style={{alignItems: 'flex-end', marginLeft: 12}}>
+                        <View style={{ alignItems: 'flex-end', marginLeft: 12 }}>
                             <Text style={styles.farePrice}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                             <Text style={styles.fareLabel}>Est. Fare</Text>
                         </View>
@@ -514,7 +514,7 @@ export default function RiderHome() {
                     <TouchableOpacity style={styles.btnPickedUp} onPress={() => setRideState('completed')}>
                         <Text style={styles.btnPickedUpText}>PASSENGER PICKED UP</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={{marginTop: 16}} onPress={() => setShowCancelModal(true)}>
+                    <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setShowCancelModal(true)}>
                         <Text style={styles.cancelRideText}>Cancel Ride</Text>
                     </TouchableOpacity>
                 </View>
@@ -526,25 +526,25 @@ export default function RiderHome() {
                     <View style={styles.successCircle}>
                         <Ionicons name="checkmark" size={32} color="#FFF" />
                     </View>
-                    
+
                     <Text style={styles.completedTitle}>Ride Completed!</Text>
                     <Text style={styles.completedSubtitle}>TOTAL TO COLLECT</Text>
-                    
+
                     <Text style={styles.totalFare}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                     <View style={styles.paymentModePill}>
                         <Text style={styles.paymentModeText}>Payment Mode: Cash</Text>
                     </View>
-                    
-                    <View style={{width: '100%', height: 1, backgroundColor: '#EEE', marginVertical: 20}} />
-                    
+
+                    <View style={{ width: '100%', height: 1, backgroundColor: '#EEE', marginVertical: 20 }} />
+
                     <Text style={styles.ratingPrompt}>How was your passenger?</Text>
                     <View style={styles.starsRow}>
-                        {[1,2,3,4,5].map(star => (
-                           <Ionicons key={star} name="star-outline" size={32} color="#CCC" style={{marginHorizontal: 4}} />
+                        {[1, 2, 3, 4, 5].map(star => (
+                            <Ionicons key={star} name="star-outline" size={32} color="#CCC" style={{ marginHorizontal: 4 }} />
                         ))}
                     </View>
-                    
-                    <TextInput 
+
+                    <TextInput
                         style={styles.noteInput}
                         placeholder="Add a note (optional)..."
                         placeholderTextColor="#999"
@@ -605,10 +605,10 @@ export default function RiderHome() {
                 onRequestClose={() => setIsMenuVisible(false)}
             >
                 <View style={styles.modalOverlayMenu}>
-                    <TouchableOpacity 
-                        style={styles.modalBackdropMenu} 
-                        activeOpacity={1} 
-                        onPress={() => setIsMenuVisible(false)} 
+                    <TouchableOpacity
+                        style={styles.modalBackdropMenu}
+                        activeOpacity={1}
+                        onPress={() => setIsMenuVisible(false)}
                     />
                     <View style={styles.sideMenu}>
                         <View style={styles.menuHeader}>
@@ -616,15 +616,17 @@ export default function RiderHome() {
                                 <Ionicons name="person" size={32} color="#FFF" />
                             </View>
                             <Text style={styles.menuDriverName}>My Profile</Text>
-                            <Text style={styles.menuDriverSubtitle}>Trike Driver</Text>
+                            <Text style={styles.menuDriverSubtitle}>
+                                {vehicleType === 'TRICYCLE' ? 'Trike Driver' : 'Single Vehicle Driver'}
+                            </Text>
                         </View>
-                        
+
                         <View style={styles.menuItemsList}>
                             <TouchableOpacity style={styles.menuItem}>
                                 <Ionicons name="time-outline" size={24} color="#444" style={styles.menuItemIcon} />
                                 <Text style={styles.menuItemText}>Ride History</Text>
                             </TouchableOpacity>
-                            
+
                             <TouchableOpacity style={styles.menuItem}>
                                 <Ionicons name="wallet-outline" size={24} color="#444" style={styles.menuItemIcon} />
                                 <Text style={styles.menuItemText}>Earnings</Text>
@@ -635,7 +637,7 @@ export default function RiderHome() {
                                 <Text style={styles.menuItemText}>Settings</Text>
                             </TouchableOpacity>
                         </View>
-                        
+
                         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                             <Ionicons name="log-out-outline" size={24} color="#D32F2F" style={styles.menuItemIcon} />
                             <Text style={styles.logoutText}>Logout</Text>
@@ -656,19 +658,19 @@ const styles = StyleSheet.create({
     locationPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
     locationDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#888', marginRight: 8 },
     locationText: { fontFamily: 'Outfit_600SemiBold', fontSize: 14, color: '#222' },
-    
+
     navigateFloatingBtn: { flexDirection: 'row', position: 'absolute', top: 80, right: 20, backgroundColor: '#1B6E45', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
     navigateFloatingText: { fontFamily: 'Outfit_700Bold', color: '#FFF', fontSize: 14, marginLeft: 8 },
-    
+
     earningsFloatingCard: { position: 'absolute', bottom: 230, left: 20, right: 20, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 6 },
     earningCol: { flex: 1 },
     divider: { width: 1, backgroundColor: '#EEEEEE', marginHorizontal: 16 },
     earningLabel: { fontFamily: 'Outfit_500Medium', fontSize: 12, color: '#888', marginBottom: 4 },
     earningValue: { fontFamily: 'Outfit_700Bold', fontSize: 22, color: '#222' },
-    
+
     bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 10 },
     sheetHandle: { width: 40, height: 4, backgroundColor: '#E0E0E0', borderRadius: 2, marginBottom: 24 },
-    
+
     statusContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
     statusTitle: { fontFamily: 'Outfit_700Bold', fontSize: 18, color: '#222' },
@@ -682,7 +684,7 @@ const styles = StyleSheet.create({
     requestBadgeText: { fontFamily: 'Outfit_700Bold', color: '#1B6E45', fontSize: 12 },
     timerBadge: { flexDirection: 'row', backgroundColor: '#F44336', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignItems: 'center' },
     timerText: { fontFamily: 'Outfit_700Bold', color: '#FFF', fontSize: 12 },
-    
+
     passengerInfoRow: { flexDirection: 'row', alignItems: 'center', width: '100%', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0F0F0' },
     passengerAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#B2DFDB', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     avatarInitials: { fontFamily: 'Outfit_700Bold', color: '#004D40', fontSize: 18 },
@@ -690,14 +692,14 @@ const styles = StyleSheet.create({
     passengerRating: { fontFamily: 'Outfit_500Medium', fontSize: 12, color: '#666', marginLeft: 4 },
     farePrice: { fontFamily: 'Outfit_700Bold', fontSize: 20, color: '#1B6E45' },
     fareLabel: { fontFamily: 'Outfit_500Medium', fontSize: 10, color: '#888' },
-    
+
     locationsContainer: { width: '100%', paddingVertical: 16 },
     locationItem: { flexDirection: 'row', alignItems: 'flex-start' },
     locDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12, marginTop: 4 },
     locLabel: { fontFamily: 'Outfit_700Bold', fontSize: 10, color: '#1B6E45', letterSpacing: 0.5 },
     locValue: { fontFamily: 'Outfit_600SemiBold', fontSize: 14, color: '#333', marginTop: 2 },
     locLine: { width: 1, height: 16, backgroundColor: '#E0E0E0', marginLeft: 3, marginVertical: 2 },
-    
+
     actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
     btnDecline: { flex: 1, borderWidth: 1, borderColor: '#CCC', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginRight: 8 },
     btnDeclineText: { fontFamily: 'Outfit_700Bold', color: '#888', fontSize: 14 },

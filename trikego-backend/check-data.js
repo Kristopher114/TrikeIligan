@@ -19,7 +19,7 @@ async function checkData() {
 
     console.log("\n=== DRIVERS TABLE ===");
     const driverResult = await client.query(`
-      SELECT d.license_number,d.vehicle_plate,d.vehicle_model,d.rating, u.full_name, u.email 
+      SELECT d.license_number,d.vehicle_plate,d.vehicle_model,d.vehicle_type,d.rating, u.full_name, u.email 
       FROM Drivers d
       JOIN Users u ON d.user_id = u.id
     `);
