@@ -358,8 +358,8 @@ app.post('/api/wallet/paypal/create-order', async (req, res) => {
         custom_id: userId.toString()
       }],
       application_context: {
-        return_url: 'trikeiligan://paypal-return',
-        cancel_url: 'trikeiligan://paypal-cancel'
+        return_url: 'trikeiligan://home',
+        cancel_url: 'trikeiligan://home'
       }
     };
 
