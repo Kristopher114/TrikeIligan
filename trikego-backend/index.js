@@ -334,10 +334,10 @@ app.post('/api/wallet/topup', async (req, res) => {
   }
 
   try {
-    // PayMongo Checkout API (Payment Sessions) to explicitly show GCash
+    // PayMongo Checkout API (Payment Links)
     const options = {
       method: 'POST',
-      url: 'https://api.paymongo.com/v1/checkout_sessions',
+      url: 'https://api.paymongo.com/v1/links',
       headers: {
         accept: 'application/json',
         'content-type': 'application/json',
@@ -346,19 +346,9 @@ app.post('/api/wallet/topup', async (req, res) => {
       data: {
         data: {
           attributes: {
-            send_email_receipt: false,
-            show_description: true,
-            show_line_items: true,
-            line_items: [
-              {
-                currency: 'PHP',
-                amount: Math.round(amount * 100), // convert to centavos
-                name: 'TrikeGo Wallet Topup',
-                quantity: 1
-              }
-            ],
-            payment_method_types: ['gcash', 'paymaya', 'card'],
-            description: `Topup for user ${userId}`
+            amount: Math.round(amount * 100), // convert to centavos
+            description: 'TrikeGo Wallet Topup',
+            remarks: `Topup for user ${userId}`
           }
         }
       }
@@ -388,11 +378,11 @@ app.post('/api/wallet/topup', async (req, res) => {
 
 // POST Webhook from PayMongo
 app.post('/api/webhooks/paymongo', async (req, res) => {
-  // PayMongo sends webhooks for 'checkout_session.payment.paid'
+  // PayMongo sends webhooks for 'link.payment.paid'
   const event = req.body.data;
   
-  if (event && event.type === 'event' && event.attributes.type === 'checkout_session.payment.paid') {
-    const paymongoId = event.attributes.data.id; // the id of the checkout session
+  if (event && event.type === 'event' && event.attributes.type === 'link.payment.paid') {
+    const paymongoId = event.attributes.data.attributes.link_id; // the id of the link we created
     
     const client = await pool.connect();
     try {
