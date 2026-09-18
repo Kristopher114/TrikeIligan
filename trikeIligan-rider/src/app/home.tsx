@@ -97,7 +97,7 @@ export default function RiderHome() {
     const [driverName, setDriverName] = useState<string>('');
     const [driverVehicle, setDriverVehicle] = useState<string>('');
     const [driverRating, setDriverRating] = useState('5.0');
-    const [vehicleType, setVehicleType] = useState('TRICYCLE');
+    const [vehicleType, setVehicleType] = useState('');
 
     // Refs for socket callbacks to avoid stale state closures
     const rideStateRef = useRef(rideState);
