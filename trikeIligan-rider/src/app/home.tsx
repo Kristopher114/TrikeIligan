@@ -93,9 +93,9 @@ export default function RiderHome() {
     const [liveEta, setLiveEta] = useState<number>(5);
     const socketRef = useRef<Socket | null>(null);
 
-    const [driverId, setDriverId] = useState<string>('driver_test_1');
-    const [driverName, setDriverName] = useState<string>('Danilo G.');
-    const [driverVehicle, setDriverVehicle] = useState<string>('Honda TMX 125 (Black)');
+    const [driverId, setDriverId] = useState<string>('');
+    const [driverName, setDriverName] = useState<string>('');
+    const [driverVehicle, setDriverVehicle] = useState<string>('');
     const [driverRating, setDriverRating] = useState('5.0');
     const [vehicleType, setVehicleType] = useState('TRICYCLE');
 
