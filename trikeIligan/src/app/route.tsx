@@ -99,6 +99,7 @@ export default function RouteScreen() {
                 params: {
                     mode: 'PICKUP',
                     returnTo: '/route',
+                    vehicleType: params.vehicleType,
                     dropoff: dropoffQuery,
                     dropoffLat: dropoffCoords?.lat,
                     dropoffLon: dropoffCoords?.lon
@@ -110,6 +111,7 @@ export default function RouteScreen() {
                 params: {
                     mode: 'DESTINATION',
                     returnTo: '/route',
+                    vehicleType: params.vehicleType,
                     pickup: pickupQuery,
                     pickupLat: pickupCoords?.lat,
                     pickupLon: pickupCoords?.lon
@@ -141,7 +143,7 @@ export default function RouteScreen() {
 
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back('/home')} style={{ paddingRight: 16 }}>
+                    <TouchableOpacity onPress={() => router.navigate('/home')} style={{ paddingRight: 16 }}>
                         <Ionicons name="arrow-back" size={24} color="#000" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Your Iligan Route</Text>
@@ -259,6 +261,7 @@ export default function RouteScreen() {
                                 router.push({
                                     pathname: '/rider-selection',
                                     params: {
+                                        vehicleType: params.vehicleType,
                                         pickup: pickupQuery,
                                         dropoff: dropoffQuery,
                                         pickupLat: pickupCoords?.lat,

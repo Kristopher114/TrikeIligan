@@ -54,7 +54,7 @@ export default function HomeScreen() {
                 {/* Services Grid */}
                 <View style={styles.gridContainer}>
                     {/* Single */}
-                    <TouchableOpacity style={styles.serviceItem} onPress={() => router.push('/route')}>
+                    <TouchableOpacity style={styles.serviceItem} onPress={() => router.push({ pathname: '/route', params: { vehicleType: 'SINGLE' } })}>
                         <View style={styles.iconCircle}>
                             <MaterialCommunityIcons name="motorbike" size={40} color="#1B6E45" />
                         </View>
@@ -62,7 +62,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
 
                     {/* Trike */}
-                    <TouchableOpacity style={styles.serviceItem} onPress={() => router.push('/route')}>
+                    <TouchableOpacity style={styles.serviceItem} onPress={() => router.push({ pathname: '/route', params: { vehicleType: 'TRICYCLE' } })}>
                         <View style={styles.iconCircle}>
                             <MaterialCommunityIcons name="rickshaw" size={40} color="#1B6E45" />
                         </View>

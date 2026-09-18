@@ -46,6 +46,9 @@ export default function LoginScreen() {
         if (data.user?.vehicleModel) {
           await AsyncStorage.setItem('driverVehicle', data.user.vehicleModel);
         }
+        if (data.user?.vehicleType) {
+          await AsyncStorage.setItem('driverVehicleType', data.user.vehicleType);
+        }
         if (data.user?.rating) {
           await AsyncStorage.setItem('driverRating', data.user.rating.toString());
         }

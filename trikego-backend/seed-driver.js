@@ -39,8 +39,8 @@ const seedDriver = async () => {
 
     // Insert into Drivers table
     const insertDriverQuery = `
-      INSERT INTO Drivers (user_id, license_number, vehicle_plate, vehicle_model, rating, is_active)
-      VALUES ($1, 'DL-123456', 'XYZ-987', 'Kawasaki Barako 175', 5.0, true);
+      INSERT INTO Drivers (user_id, license_number, vehicle_plate, vehicle_model, vehicle_type, rating, is_active)
+      VALUES ($1, 'DL-123456', 'XYZ-987', 'Kawasaki Barako 175', 'SINGLE', 5.0, true);
     `;
     await client.query(insertDriverQuery, [userId]);
 

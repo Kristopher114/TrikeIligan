@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WebView } from 'react-native-webview';
 
 const { width } = Dimensions.get('window');
 
@@ -49,7 +50,9 @@ export default function RiderSelectionScreen() {
     useEffect(() => {
         if (!passengerId) return;
 
-        const socket = io('https://trikeiligan.onrender.com');
+        const socket = io('https://trikeiligan.onrender.com', {
+            transports: ['websocket']
+        });
         socketRef.current = socket;
 
         // Listen for driver accepting the ride
@@ -86,8 +89,13 @@ export default function RiderSelectionScreen() {
             rideId: `ride_${Date.now()}`,
             passengerId: passengerId,
             passengerName: passengerName,
-            pickup: 'Custom Pickup', // Ideally from params
-            dropoff: 'Custom Dropoff',
+            pickup: params.pickup || 'Current Location',
+            dropoff: params.dropoff || 'Destination',
+            pickupLat: params.pickupLat,
+            pickupLon: params.pickupLon,
+            dropoffLat: params.dropoffLat,
+            dropoffLon: params.dropoffLon,
+            vehicleType: params.vehicleType || 'TRICYCLE',
             fare: fare,
             rating: 5.0
         });
@@ -146,13 +154,85 @@ export default function RiderSelectionScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top']}>
             <StatusBar style="dark" backgroundColor="#FFFFFF" />
             
-            {/* Top Map Area Placeholder */}
+            {/* Top Map Area */}
             <View style={styles.mapArea}>
+                {(params.pickupLat && params.dropoffLat) ? (
+                    <WebView
+                        source={{ html: `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                            <style>
+                                body { padding: 0; margin: 0; background-color: #EAEAEA; }
+                                html, body, #map { height: 100%; width: 100%; }
+                                .leaflet-control-attribution { display: none !important; }
+                            </style>
+                        </head>
+                        <body>
+                            <div id="map"></div>
+                            <script>
+                                var map = L.map('map', { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView([${params.pickupLat}, ${params.pickupLon}], 14);
+                                L.tileLayer('https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+                                
+                                var startIcon = L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                                });
+                                var endIcon = L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                                });
+                                
+                                L.marker([${params.pickupLat}, ${params.pickupLon}], {icon: startIcon}).addTo(map);
+                                L.marker([${params.dropoffLat}, ${params.dropoffLon}], {icon: endIcon}).addTo(map);
+                                
+                                var bounds = L.latLngBounds([[${params.pickupLat}, ${params.pickupLon}], [${params.dropoffLat}, ${params.dropoffLon}]]);
+                                map.fitBounds(bounds, { padding: [50, 50] });
+                                
+                                // Fetch street route using OSRM API
+                                fetch(\`https://router.project-osrm.org/route/v1/driving/\${${params.pickupLon}},\${${params.pickupLat}};\${${params.dropoffLon}},\${${params.dropoffLat}}?overview=full&geometries=geojson\`)
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.routes && data.routes.length > 0) {
+                                            var coords = data.routes[0].geometry.coordinates;
+                                            var latLngs = coords.map(function(coord) {
+                                                return [coord[1], coord[0]]; // OSRM is [lon, lat], Leaflet is [lat, lon]
+                                            });
+                                            L.polyline(latLngs, {color: '#1B6E45', weight: 5}).addTo(map);
+                                            map.fitBounds(L.polyline(latLngs).getBounds(), { padding: [40, 40] });
+                                        } else {
+                                            throw new Error('No route found');
+                                        }
+                                    })
+                                    .catch(err => {
+                                        // Fallback to straight dashed line if routing fails
+                                        L.polyline([
+                                            [${params.pickupLat}, ${params.pickupLon}],
+                                            [${params.dropoffLat}, ${params.dropoffLon}]
+                                        ], {color: '#1B6E45', weight: 4, dashArray: '5, 10'}).addTo(map);
+                                    });
+                            </script>
+                        </body>
+                        </html>
+                        ` }}
+                        style={{ flex: 1, width: width }}
+                        scrollEnabled={false}
+                    />
+                ) : (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="map-outline" size={64} color="#A0A0A0" />
+                        <Text style={styles.mapPlaceholderText}>No Coordinates Provided</Text>
+                    </View>
+                )}
+                
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color="#000" />
                 </TouchableOpacity>
-                <Ionicons name="map-outline" size={64} color="#A0A0A0" />
-                <Text style={styles.mapPlaceholderText}>Map View</Text>
             </View>
 
             {/* Bottom Sheet Area */}
@@ -303,6 +383,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        zIndex: 10,
     },
     mapPlaceholderText: {
         fontFamily: 'Outfit_500Medium',

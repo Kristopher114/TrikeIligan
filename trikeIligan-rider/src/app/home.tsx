@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,12 +89,26 @@ export default function RiderHome() {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [timer, setTimer] = useState(15);
     const [currentRideOffer, setCurrentRideOffer] = useState<any>(null);
+    const [currentLocation, setCurrentLocation] = useState<{lat: number, lon: number} | null>(null);
+    const [liveEta, setLiveEta] = useState<number>(5);
     const socketRef = useRef<Socket | null>(null);
 
     const [driverId, setDriverId] = useState<string>('driver_test_1');
     const [driverName, setDriverName] = useState<string>('Danilo G.');
     const [driverVehicle, setDriverVehicle] = useState<string>('Honda TMX 125 (Black)');
-    const [driverRating, setDriverRating] = useState<string>('5.0');
+    const [driverRating, setDriverRating] = useState('5.0');
+    const [vehicleType, setVehicleType] = useState('TRICYCLE');
+
+    // Refs for socket callbacks to avoid stale state closures
+    const rideStateRef = useRef(rideState);
+    const isOnlineRef = useRef(isOnline);
+    const driverIdRef = useRef(driverId);
+    const vehicleTypeRef = useRef(vehicleType);
+
+    useEffect(() => { rideStateRef.current = rideState; }, [rideState]);
+    useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+    useEffect(() => { driverIdRef.current = driverId; }, [driverId]);
+    useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
 
     // Load Driver Info
     useEffect(() => {
@@ -103,11 +117,13 @@ export default function RiderHome() {
                 const id = await AsyncStorage.getItem('userId');
                 const name = await AsyncStorage.getItem('userFullName');
                 const vehicle = await AsyncStorage.getItem('driverVehicle');
+                const vType = await AsyncStorage.getItem('driverVehicleType');
                 const rating = await AsyncStorage.getItem('driverRating');
                 
                 if (id) setDriverId(id);
                 if (name) setDriverName(name);
                 if (vehicle) setDriverVehicle(vehicle);
+                if (vType) setVehicleType(vType);
                 if (rating) setDriverRating(rating);
             } catch (e) {
                 console.error("Failed to load driver info", e);
@@ -138,6 +154,27 @@ export default function RiderHome() {
         };
     }, [rideState]);
 
+    // Calculate Live ETA during active ride
+    useEffect(() => {
+        if (rideState === 'active' && currentLocation && currentRideOffer?.pickupLat && currentRideOffer?.pickupLon) {
+            const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+                const R = 6371;
+                const dLat = (lat2 - lat1) * (Math.PI / 180);
+                const dLon = (lon2 - lon1) * (Math.PI / 180);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+            const distance = getDistanceFromLatLonInKm(
+                currentLocation.lat, 
+                currentLocation.lon, 
+                parseFloat(currentRideOffer.pickupLat), 
+                parseFloat(currentRideOffer.pickupLon)
+            );
+            const eta = Math.max(1, Math.round((distance * 3) + 2)); // 3 mins per km + 2 min base
+            setLiveEta(eta);
+        }
+    }, [currentLocation, rideState, currentRideOffer]);
+
     // LOCATION & SOCKET INIT
     useEffect(() => {
         let locationSubscription: Location.LocationSubscription;
@@ -161,9 +198,10 @@ export default function RiderHome() {
                     distanceInterval: 1,
                 },
                 (loc) => {
+                    const lat = loc.coords.latitude;
+                    const lng = loc.coords.longitude;
+                    setCurrentLocation({ lat, lon: lng });
                     if (webviewRef.current) {
-                        const lat = loc.coords.latitude;
-                        const lng = loc.coords.longitude;
                         webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lng}); true;`);
                     }
                 }
@@ -171,11 +209,20 @@ export default function RiderHome() {
         })();
 
         // Connect socket
-        const socket = io('https://trikeiligan.onrender.com');
+        const socket = io('https://trikeiligan.onrender.com', {
+            transports: ['websocket']
+        });
         socketRef.current = socket;
 
+        // Auto-rejoin if socket reconnects (e.g. when Render backend wakes up)
+        socket.on('connect', () => {
+            if (isOnlineRef.current) {
+                socket.emit('driver_online', { driverId: driverIdRef.current, vehicleType: vehicleTypeRef.current });
+            }
+        });
+
         socket.on('ride_offer', (data) => {
-            if (rideState === 'idle') {
+            if (rideStateRef.current === 'idle') {
                 setCurrentRideOffer(data);
                 setRideState('request');
             }
@@ -196,9 +243,55 @@ export default function RiderHome() {
         Outfit_400Regular,
     });
 
-    if (!fontsLoaded) {
-        return null;
-    }
+    const handleNavigate = () => {
+        if (!currentRideOffer) return;
+        
+        let url = '';
+        
+        // If we have both pickup and dropoff coordinates, open Maps in routing/directions mode
+        if (currentRideOffer.pickupLat && currentRideOffer.pickupLon && currentRideOffer.dropoffLat && currentRideOffer.dropoffLon) {
+            const origin = `${currentRideOffer.pickupLat},${currentRideOffer.pickupLon}`;
+            const destination = `${currentRideOffer.dropoffLat},${currentRideOffer.dropoffLon}`;
+            
+            if (Platform.OS === 'ios') {
+                url = `http://maps.apple.com/?saddr=${origin}&daddr=${destination}&dirflg=d`;
+            } else {
+                url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+            }
+        } 
+        // Fallback: just open the pickup location if dropoff is missing
+        else if (currentRideOffer.pickupLat && currentRideOffer.pickupLon) {
+            const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' }) || 'geo:0,0?q=';
+            const latLng = `${currentRideOffer.pickupLat},${currentRideOffer.pickupLon}`;
+            const label = 'Pickup Location';
+            url = Platform.select({
+                ios: `${scheme}${label}@${latLng}`,
+                android: `${scheme}${latLng}(${label})`
+            }) || `${scheme}${latLng}(${label})`;
+        } 
+        // Fallback: text query
+        else {
+            const query = encodeURIComponent(currentRideOffer.pickup || 'Iligan City');
+            url = Platform.select({
+                ios: `maps:0,0?q=${query}`,
+                android: `geo:0,0?q=${query}`
+            }) || `geo:0,0?q=${query}`;
+        }
+        
+        if (url) {
+            Linking.canOpenURL(url).then(supported => {
+                if (supported) {
+                    Linking.openURL(url);
+                } else {
+                    alert('Cannot open maps app. Ensure you have Google Maps or Apple Maps installed.');
+                }
+            }).catch(() => {
+                alert('Cannot open maps app.');
+            });
+        }
+    };
+
+    if (!fontsLoaded) return null;
 
     const toggleOnlineStatus = () => {
         const newStatus = !isOnline;
@@ -206,7 +299,7 @@ export default function RiderHome() {
         
         if (newStatus && socketRef.current) {
             // Emulate driver ID and go online
-            socketRef.current.emit('driver_online', { driverId: driverId });
+            socketRef.current.emit('driver_online', { driverId: driverId, vehicleType: vehicleType });
         }
     };
 
@@ -218,6 +311,7 @@ export default function RiderHome() {
             driverId: driverId,
             driverName: driverName,
             driverVehicle: driverVehicle,
+            vehicleType: vehicleType,
             driverRating: driverRating,
             rideId: currentRideOffer.rideId,
             passengerId: currentRideOffer.passengerId
@@ -265,7 +359,7 @@ export default function RiderHome() {
                 
                 {/* Float Navigate Button during active ride */}
                 {rideState === 'active' && (
-                    <TouchableOpacity style={styles.navigateFloatingBtn}>
+                    <TouchableOpacity style={styles.navigateFloatingBtn} onPress={handleNavigate}>
                         <Ionicons name="navigate" size={24} color="#FFF" />
                         <Text style={styles.navigateFloatingText}>NAVIGATE</Text>
                     </TouchableOpacity>
@@ -385,20 +479,22 @@ export default function RiderHome() {
                     <View style={styles.activeRideHeader}>
                         <View style={[styles.locDot, {backgroundColor: '#1B6E45', marginTop: 4}]} />
                         <View>
-                            <Text style={styles.activeTitle}>Pick up passenger in 5 mins</Text>
-                            <Text style={styles.activeSubtitle}>Heading to Robinsons Mall</Text>
+                            <Text style={styles.activeTitle}>Pick up passenger in {liveEta} mins</Text>
+                            <Text style={styles.activeSubtitle}>Heading to {currentRideOffer?.pickup || 'Pickup Location'}</Text>
                         </View>
                     </View>
 
                     <View style={styles.passengerInfoRow}>
                         <View style={styles.passengerAvatar}>
-                            <Text style={styles.avatarInitials}>MS</Text>
+                            <Text style={styles.avatarInitials}>
+                                {currentRideOffer?.passengerName ? currentRideOffer.passengerName.substring(0, 2).toUpperCase() : 'MS'}
+                            </Text>
                         </View>
                         <View style={{flex: 1}}>
-                            <Text style={styles.passengerName}>Maria Santos</Text>
+                            <Text style={styles.passengerName}>{currentRideOffer?.passengerName || 'Unknown Passenger'}</Text>
                             <View style={{flexDirection: 'row', alignItems: 'center'}}>
                                 <Ionicons name="star" size={12} color="#F59E0B" />
-                                <Text style={styles.passengerRating}>4.9 • Cash Payment</Text>
+                                <Text style={styles.passengerRating}>{currentRideOffer?.rating || '5.0'} • Cash Payment</Text>
                             </View>
                         </View>
                         <View style={styles.contactButtons}>
@@ -410,7 +506,7 @@ export default function RiderHome() {
                             </TouchableOpacity>
                         </View>
                         <View style={{alignItems: 'flex-end', marginLeft: 12}}>
-                            <Text style={styles.farePrice}>₱ 55.00</Text>
+                            <Text style={styles.farePrice}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                             <Text style={styles.fareLabel}>Est. Fare</Text>
                         </View>
                     </View>
@@ -434,7 +530,7 @@ export default function RiderHome() {
                     <Text style={styles.completedTitle}>Ride Completed!</Text>
                     <Text style={styles.completedSubtitle}>TOTAL TO COLLECT</Text>
                     
-                    <Text style={styles.totalFare}>₱ 55.00</Text>
+                    <Text style={styles.totalFare}>₱ {currentRideOffer?.fare || '0.00'}</Text>
                     <View style={styles.paymentModePill}>
                         <Text style={styles.paymentModeText}>Payment Mode: Cash</Text>
                     </View>

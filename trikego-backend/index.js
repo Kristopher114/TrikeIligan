@@ -157,7 +157,7 @@ app.post('/api/login', async (req, res) => {
 
 // Driver Signup Endpoint
 app.post('/api/driver-signup', async (req, res) => {
-  const { fullName, email, phoneNumber, password, username } = req.body;
+  const { fullName, email, phoneNumber, password, username, vehicleType } = req.body;
 
   if (!fullName || !email || !phoneNumber || !password || !username) {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
@@ -195,10 +195,11 @@ app.post('/api/driver-signup', async (req, res) => {
     // Wait, let's just add username to Drivers table or check Users table directly.
     // Actually, `Drivers` doesn't have a username column. Let's just create the driver and log them in via email/phone in the driver login.
     const insertDriverQuery = `
-      INSERT INTO Drivers (user_id)
-      VALUES ($1);
+      INSERT INTO Drivers (user_id, vehicle_type)
+      VALUES ($1, $2);
     `;
-    await client.query(insertDriverQuery, [userId]);
+    const vType = vehicleType === 'SINGLE' ? 'SINGLE' : 'TRICYCLE';
+    await client.query(insertDriverQuery, [userId, vType]);
 
     await client.query('COMMIT');
     res.status(201).json({ status: 'success', message: 'Driver created successfully', userId });
@@ -222,7 +223,7 @@ app.post('/api/driver-login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.rating
+      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.vehicle_type, d.rating
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
       WHERE u.email = $1 OR u.phone_number = $1
@@ -248,6 +249,7 @@ app.post('/api/driver-login', async (req, res) => {
         fullName: user.full_name,
         role: user.role,
         vehicleModel: user.vehicle_model || 'Trike',
+        vehicleType: user.vehicle_type || 'TRICYCLE',
         rating: user.rating || 5.0
       }
     });
@@ -350,17 +352,20 @@ io.on('connection', (socket) => {
 
   // 1. Driver goes online
   socket.on('driver_online', (data) => {
-    console.log(`Driver ${data.driverId} is online`);
+    console.log(`Driver ${data.driverId} is online with vehicleType ${data.vehicleType || 'TRICYCLE'}`);
     socket.join(`driver_${data.driverId}`);
-    socket.join('available_drivers');
+    socket.join('available_drivers'); // Generic room
+    if (data.vehicleType) {
+      socket.join(`available_drivers_${data.vehicleType}`); // Specific room
+    }
   });
 
   // 2. Passenger requests a ride
   socket.on('passenger_request_ride', (data) => {
-    console.log(`Passenger ${data.passengerId} requested a ride`);
-    // Broadcast the ride offer to all online drivers
-    // Note: In production, we'd use geolocation to find the nearest driver.
-    io.to('available_drivers').emit('ride_offer', {
+    console.log(`Passenger ${data.passengerId} requested a ride for ${data.vehicleType || 'TRICYCLE'}`);
+    // Broadcast the ride offer to drivers of the requested vehicle type
+    const targetRoom = data.vehicleType ? `available_drivers_${data.vehicleType}` : 'available_drivers';
+    io.to(targetRoom).emit('ride_offer', {
       rideId: data.rideId,
       passengerId: data.passengerId,
       passengerName: data.passengerName,

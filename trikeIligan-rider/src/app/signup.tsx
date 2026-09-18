@@ -12,6 +12,7 @@ export default function SignupScreen() {
     const [username, setUsername] = useState('');
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [vehicleType, setVehicleType] = useState('TRICYCLE');
     const [emailError, setEmailError] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
@@ -55,7 +56,8 @@ export default function SignupScreen() {
                     fullName,
                     email,
                     phoneNumber,
-                    password
+                    password,
+                    vehicleType
                 }),
             });
 
@@ -164,6 +166,24 @@ export default function SignupScreen() {
                                 onChangeText={setPhoneNumber}
                                 keyboardType="phone-pad"
                             />
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Vehicle Type</Text>
+                            <View style={styles.vehicleToggleContainer}>
+                                <TouchableOpacity 
+                                    style={[styles.vehicleToggleButton, vehicleType === 'SINGLE' && styles.vehicleToggleButtonActive]} 
+                                    onPress={() => setVehicleType('SINGLE')}
+                                >
+                                    <Text style={[styles.vehicleToggleText, vehicleType === 'SINGLE' && styles.vehicleToggleTextActive]}>Single</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[styles.vehicleToggleButton, vehicleType === 'TRICYCLE' && styles.vehicleToggleButtonActive]} 
+                                    onPress={() => setVehicleType('TRICYCLE')}
+                                >
+                                    <Text style={[styles.vehicleToggleText, vehicleType === 'TRICYCLE' && styles.vehicleToggleTextActive]}>Tricycle</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         <View style={styles.inputGroup}>
@@ -295,6 +315,31 @@ const styles = StyleSheet.create({
         color: 'red',
         fontSize: 12,
         marginTop: 4,
+    },
+    vehicleToggleContainer: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 4,
+    },
+    vehicleToggleButton: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#1B6E45',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    vehicleToggleButtonActive: {
+        backgroundColor: '#1B6E45',
+    },
+    vehicleToggleText: {
+        fontFamily: 'Outfit_600SemiBold',
+        fontSize: 16,
+        color: '#1B6E45',
+    },
+    vehicleToggleTextActive: {
+        color: '#FFFFFF',
     },
     passwordContainer: {
         flexDirection: 'row',

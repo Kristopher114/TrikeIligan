@@ -232,7 +232,7 @@ export default function MapScreen() {
 
             if (params.returnTo) {
                 // We came from the route screen just to pick the pickup on the map
-                router.replace({
+                router.navigate({
                     pathname: params.returnTo,
                     params: {
                         pickup: mapCenterAddress,
@@ -272,7 +272,7 @@ export default function MapScreen() {
 
             if (params.returnTo) {
                 // We came from the route screen just to pick the dropoff on the map, so go back and pass the dropoff address
-                router.replace({
+                router.navigate({
                     pathname: params.returnTo,
                     params: {
                         pickup: params.pickup || pickupLocation?.address || '',
@@ -285,7 +285,7 @@ export default function MapScreen() {
                 });
             } else if (params.mode === 'DESTINATION') {
                 // fallback for our previous fix just in case
-                router.replace({
+                router.navigate({
                     pathname: '/route',
                     params: {
                         pickup: pickupLocation?.address || '',
