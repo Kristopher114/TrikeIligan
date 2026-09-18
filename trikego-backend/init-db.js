@@ -36,6 +36,7 @@ const createTables = async () => {
         license_number VARCHAR(50),
         vehicle_plate VARCHAR(20),
         vehicle_model VARCHAR(50),
+        vehicle_type VARCHAR(20) DEFAULT 'TRICYCLE' CHECK (vehicle_type IN ('SINGLE', 'TRICYCLE')),
         rating DECIMAL(3, 2) DEFAULT 5.00,
         is_active BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
