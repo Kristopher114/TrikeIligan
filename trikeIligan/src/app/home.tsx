@@ -15,7 +15,6 @@ export default function HomeScreen() {
     const [fullName, setFullName] = useState('');
     const [userId, setUserId] = useState('');
     const [walletBalance, setWalletBalance] = useState('0.00');
-    const [isToppingUp, setIsToppingUp] = useState(false);
 
     const [showName, setShowName] = useState(false);
 
@@ -51,56 +50,8 @@ export default function HomeScreen() {
         }
     };
 
-    const handleTopUp = async () => {
-        if (!userId) return;
-        setIsToppingUp(true);
-        try {
-            const baseUrl = Linking.createURL('paypal-return');
-            const returnUrl = `${baseUrl}?userId=${userId}`;
-            
-            const res = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/create-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, amount: 500, returnUrl }) // Example fixed amount for now
-            });
-            const data = await res.json();
-            
-            if (data.status === 'success' && data.checkoutUrl && data.orderId) {
-                // Open PayPal Checkout in a secure auth session that redirects back to the app
-                const result = await WebBrowser.openAuthSessionAsync(
-                    data.checkoutUrl, 
-                    returnUrl
-                );
-
-                // If user didn't cancel, capture the payment
-                if (result.type === 'success') {
-                    const captureRes = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/capture-order', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ orderId: data.orderId })
-                    });
-                    const captureData = await captureRes.json();
-                    
-                    if (captureData.status === 'success') {
-                        alert('Top-up successful!');
-                    } else {
-                        alert('Payment was not completed.');
-                    }
-                } else if (result.type === 'cancel') {
-                    alert('Top-up cancelled.');
-                }
-                
-                // Refresh balance regardless
-                fetchBalance(userId);
-            } else {
-                alert('Failed to initiate top-up.');
-            }
-        } catch (error) {
-            console.error('Topup error:', error);
-            alert('An error occurred while topping up.');
-        } finally {
-            setIsToppingUp(false);
-        }
+    const handleTopUp = () => {
+        router.push('/topup');
     };
 
     const [fontsLoaded] = useFonts({
@@ -151,8 +102,8 @@ export default function HomeScreen() {
                         <Text style={styles.balanceLabel}>Online Money Balance</Text>
                         <Text style={styles.balanceAmount}>₱{walletBalance}</Text>
                     </View>
-                    <TouchableOpacity style={styles.topupButton} onPress={handleTopUp} disabled={isToppingUp}>
-                        <Text style={styles.topupButtonText}>{isToppingUp ? 'Loading...' : 'Top Up'}</Text>
+                    <TouchableOpacity style={styles.topupButton} onPress={handleTopUp}>
+                        <Text style={styles.topupButtonText}>Top Up</Text>
                     </TouchableOpacity>
                 </View>
 
