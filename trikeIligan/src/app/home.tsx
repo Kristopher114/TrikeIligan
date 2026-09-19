@@ -55,7 +55,8 @@ export default function HomeScreen() {
         if (!userId) return;
         setIsToppingUp(true);
         try {
-            const returnUrl = Linking.createURL('paypal-return');
+            const baseUrl = Linking.createURL('paypal-return');
+            const returnUrl = `${baseUrl}?userId=${userId}`;
             
             const res = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/create-order', {
                 method: 'POST',

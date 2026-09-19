@@ -22,11 +22,13 @@ export default function PaypalReturn() {
             }
 
             try {
-                const userId = await AsyncStorage.getItem('userId');
+                const urlUserId = params.userId;
+                const finalUserId = urlUserId || await AsyncStorage.getItem('userId');
+                
                 const res = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/capture-order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ orderId, userId })
+                    body: JSON.stringify({ orderId, userId: finalUserId })
                 });
                 const data = await res.json();
                 
