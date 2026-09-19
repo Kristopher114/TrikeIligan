@@ -389,6 +389,16 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
   }
 
   try {
+    // PRE-CHECK: If we already captured this, just return success immediately!
+    const clientPreCheck = await pool.connect();
+    try {
+      const preCheck = await clientPreCheck.query('SELECT id FROM Transactions WHERE reference_id = $1', [orderId]);
+      if (preCheck.rows.length > 0) {
+        return res.json({ status: 'success', message: 'Topup already successful' });
+      }
+    } finally {
+      clientPreCheck.release();
+    }
     const accessToken = await getPayPalAccessToken();
     
     // First, fetch the order details to get the custom_id (userId)
