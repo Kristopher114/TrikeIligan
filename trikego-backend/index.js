@@ -390,6 +390,15 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
 
   try {
     const accessToken = await getPayPalAccessToken();
+    
+    // First, fetch the order details to get the custom_id (userId)
+    const orderDetailsRes = await axios.get(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    
+    const fetchedCustomId = orderDetailsRes.data.purchase_units[0]?.custom_id;
+
+    // Call PayPal to capture the order
     const response = await axios.post(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`, {}, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -399,7 +408,11 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
 
     if (response.data.status === 'COMPLETED') {
       const amount = parseFloat(response.data.purchase_units[0].payments.captures[0].amount.value);
-      const finalUserId = userId || (response.data.purchase_units[0]?.custom_id);
+      const finalUserId = userId || fetchedCustomId;
+
+      if (!finalUserId) {
+        throw new Error("Could not determine user ID for this transaction.");
+      }
 
       const client = await pool.connect();
       try {
