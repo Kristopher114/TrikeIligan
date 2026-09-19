@@ -78,16 +78,14 @@ export default function TopUpScreen() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#333333" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Top Up Wallet</Text>
-                    <View style={{ width: 24 }} /> {/* Balance spacer */}
+                    <View style={{ width: 24 }} />
                 </View>
 
-                {/* Content */}
                 <View style={styles.content}>
                     <Text style={styles.label}>Select Amount (₱)</Text>
                     
