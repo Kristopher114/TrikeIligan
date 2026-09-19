@@ -8,6 +8,7 @@ import TabBar from '../components/TabBar';
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -54,10 +55,12 @@ export default function HomeScreen() {
         if (!userId) return;
         setIsToppingUp(true);
         try {
+            const returnUrl = Linking.createURL('paypal-return');
+            
             const res = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/create-order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, amount: 500 }) // Example fixed amount for now
+                body: JSON.stringify({ userId, amount: 500, returnUrl }) // Example fixed amount for now
             });
             const data = await res.json();
             
@@ -65,7 +68,7 @@ export default function HomeScreen() {
                 // Open PayPal Checkout in a secure auth session that redirects back to the app
                 const result = await WebBrowser.openAuthSessionAsync(
                     data.checkoutUrl, 
-                    'trikeiligan://home'
+                    returnUrl
                 );
 
                 // If user didn't cancel, capture the payment
