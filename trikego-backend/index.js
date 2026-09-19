@@ -406,12 +406,12 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
         await client.query('BEGIN');
         
         // Ensure this transaction wasn't already recorded
-        const txCheck = await client.query('SELECT id FROM Transactions WHERE paymongo_id = $1', [orderId]);
+        const txCheck = await client.query('SELECT id FROM Transactions WHERE reference_id = $1', [orderId]);
         
         if (txCheck.rows.length === 0) {
-          // Record transaction (reusing paymongo_id column for paypal order id)
+          // Record transaction
           await client.query(`
-            INSERT INTO Transactions (user_id, amount, transaction_type, status, paymongo_id)
+            INSERT INTO Transactions (user_id, amount, transaction_type, status, reference_id)
             VALUES ($1, $2, 'TOPUP', 'COMPLETED', $3)
           `, [userId, amount, orderId]);
           

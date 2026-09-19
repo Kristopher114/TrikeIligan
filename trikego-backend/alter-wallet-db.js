@@ -23,7 +23,7 @@ async function alterDatabase() {
           amount DECIMAL(10, 2) NOT NULL,
           transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('TOPUP', 'FARE_PAYMENT', 'EARNING', 'WITHDRAWAL')),
           status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED')),
-          paymongo_id VARCHAR(255),
+          reference_id VARCHAR(255),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
