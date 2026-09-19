@@ -382,7 +382,7 @@ app.post('/api/wallet/paypal/create-order', async (req, res) => {
 
 // POST Capture PayPal Order
 app.post('/api/wallet/paypal/capture-order', async (req, res) => {
-  const { orderId } = req.body;
+  const { orderId, userId } = req.body;
   
   if (!orderId) {
     return res.status(400).json({ status: 'error', message: 'Order ID is required' });
@@ -399,7 +399,7 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
 
     if (response.data.status === 'COMPLETED') {
       const amount = parseFloat(response.data.purchase_units[0].payments.captures[0].amount.value);
-      const userId = response.data.purchase_units[0].custom_id;
+      const finalUserId = userId || (response.data.purchase_units[0]?.custom_id);
 
       const client = await pool.connect();
       try {
@@ -413,10 +413,10 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
           await client.query(`
             INSERT INTO Transactions (user_id, amount, transaction_type, status, reference_id)
             VALUES ($1, $2, 'TOPUP', 'COMPLETED', $3)
-          `, [userId, amount, orderId]);
+          `, [finalUserId, amount, orderId]);
           
           // Update user balance
-          await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [amount, userId]);
+          await client.query('UPDATE Users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2', [amount, finalUserId]);
         }
         
         await client.query('COMMIT');
@@ -561,10 +561,10 @@ io.on('connection', (socket) => {
         await client.query('BEGIN');
         
         // Deduct from passenger
-        await client.query('UPDATE Users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [fareAmount, data.passengerId]);
+        await client.query('UPDATE Users SET wallet_balance = COALESCE(wallet_balance, 0) - $1 WHERE id = $2', [fareAmount, data.passengerId]);
         
         // Credit to driver
-        await client.query('UPDATE Users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [fareAmount, data.driverId]);
+        await client.query('UPDATE Users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2', [fareAmount, data.driverId]);
         
         // Log transaction for passenger
         await client.query(`
