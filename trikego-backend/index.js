@@ -340,7 +340,7 @@ async function getPayPalAccessToken() {
 
 // POST Create PayPal Order
 app.post('/api/wallet/paypal/create-order', async (req, res) => {
-  const { userId, amount } = req.body;
+  const { userId, amount, returnUrl } = req.body;
   if (!userId || !amount || amount <= 0) {
     return res.status(400).json({ status: 'error', message: 'Invalid topup amount' });
   }
@@ -358,8 +358,8 @@ app.post('/api/wallet/paypal/create-order', async (req, res) => {
         custom_id: userId.toString()
       }],
       application_context: {
-        return_url: 'trikeiligan://home',
-        cancel_url: 'trikeiligan://home'
+        return_url: returnUrl || 'trikeiligan://paypal-return',
+        cancel_url: returnUrl || 'trikeiligan://paypal-cancel'
       }
     };
 
