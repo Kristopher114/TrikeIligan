@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PaypalReturn() {
     const router = useRouter();
@@ -21,10 +22,11 @@ export default function PaypalReturn() {
             }
 
             try {
+                const userId = await AsyncStorage.getItem('userId');
                 const res = await fetch('https://trikeiligan.onrender.com/api/wallet/paypal/capture-order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ orderId })
+                    body: JSON.stringify({ orderId, userId })
                 });
                 const data = await res.json();
                 
