@@ -26,6 +26,8 @@ export default function RiderSelectionScreen() {
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
     const [walletBalance, setWalletBalance] = useState<number>(0);
     const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const [driverRatingScore, setDriverRatingScore] = useState(5);
     const socketRef = useRef<Socket | null>(null);
 
     // Load user info for socket
@@ -108,6 +110,11 @@ export default function RiderSelectionScreen() {
         socket.on(`ride_declined_${passengerId}`, () => {
             alert("Driver declined. Please try booking again.");
             setRideStatus('idle');
+        });
+
+        socket.on(`ride_completed_${passengerId}`, (data) => {
+            console.log('Ride completed, showing rating modal');
+            setShowRatingModal(true);
         });
 
         return () => {
@@ -426,6 +433,73 @@ export default function RiderSelectionScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Arrival & Rating Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={showRatingModal}
+                onRequestClose={() => {}}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                            <Ionicons name="checkmark-circle" size={64} color="#1B6E45" />
+                            <Text style={[styles.modalTitle, { marginTop: 12 }]}>You have arrived!</Text>
+                            <Text style={styles.modalText}>How was your ride?</Text>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 32 }}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity key={star} onPress={() => setDriverRatingScore(star)}>
+                                    <Ionicons 
+                                        name={star <= driverRatingScore ? "star" : "star-outline"} 
+                                        size={40} 
+                                        color="#F59E0B" 
+                                        style={{ marginHorizontal: 4 }}
+                                    />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        
+                        <TouchableOpacity
+                            style={[styles.confirmButton, { width: '100%', marginBottom: 12 }]}
+                            onPress={async () => {
+                                if (driverData?.driverId) {
+                                    try {
+                                        await fetch('https://trikeiligan.onrender.com/api/rate-driver', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                driverId: driverData.driverId,
+                                                passengerId: passengerId,
+                                                rating: driverRatingScore
+                                            })
+                                        });
+                                    } catch (e) {
+                                        console.error("Error submitting rating", e);
+                                    }
+                                }
+                                setShowRatingModal(false);
+                                router.replace('/home');
+                            }}
+                        >
+                            <Text style={styles.confirmButtonText}>Submit Rating</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                            style={[styles.cancelButton, { width: '100%' }]} 
+                            onPress={() => {
+                                setShowRatingModal(false);
+                                router.replace('/home');
+                            }}
+                        >
+                            <Text style={styles.cancelButtonText}>Skip</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
         </SafeAreaView>
     );
 }

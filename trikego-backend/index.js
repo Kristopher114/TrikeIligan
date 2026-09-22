@@ -479,9 +479,43 @@ app.get('/api/rides/:userId', async (req, res) => {
       status: 'success',
       rides: result.rows
     });
+  } catch (err) {
+    console.error('Error fetching rides:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Rate Driver Endpoint
+app.post('/api/rate-driver', async (req, res) => {
+  const { driverId, passengerId, rating } = req.body;
+  
+  if (!driverId || !rating) {
+    return res.status(400).json({ status: 'error', message: 'Driver ID and rating are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Very simple rolling average calculation or direct update for MVP
+    // We update the driver's overall rating in the Drivers table.
+    // In a real production environment, you'd store individual ratings in a separate table and compute the average.
+    const query = `
+      UPDATE Drivers 
+      SET rating = (rating + $1) / 2.0 
+      WHERE user_id = $2
+      RETURNING rating;
+    `;
+    const result = await client.query(query, [rating, driverId]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ status: 'error', message: 'Driver not found' });
+    }
+    
+    res.json({ status: 'success', message: 'Rating submitted successfully', newRating: result.rows[0].rating });
   } catch (error) {
-    console.error('Fetch rides error:', error);
-    res.status(500).json({ status: 'error', message: 'Failed to fetch rides' });
+    console.error('Error submitting rating:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to submit rating' });
   } finally {
     client.release();
   }
@@ -575,6 +609,9 @@ io.on('connection', (socket) => {
 
   socket.on('ride_completed', async (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'completed' });
+    if (data.passengerId) {
+      io.emit(`ride_completed_${data.passengerId}`, { rideId: data.rideId });
+    }
     
     // Process wallet transaction if payment method is WALLET
     if (data.paymentMethod === 'WALLET' && data.passengerId && data.driverId && data.fare) {
