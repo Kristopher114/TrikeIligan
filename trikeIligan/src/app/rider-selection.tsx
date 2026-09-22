@@ -58,6 +58,37 @@ export default function RiderSelectionScreen() {
         loadUser();
     }, []);
 
+    useEffect(() => {
+        const calculateFare = async () => {
+            if (!params.pickupLat || !params.dropoffLat) {
+                setIsCalculating(false);
+                return;
+            }
+            try {
+                setIsCalculating(true);
+                const response = await fetch('https://trikeiligan.onrender.com/api/calculate-fare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pickupLat: parseFloat(params.pickupLat as string),
+                        pickupLon: parseFloat(params.pickupLon as string),
+                        dropLat: parseFloat(params.dropoffLat as string),
+                        dropLon: parseFloat(params.dropoffLon as string)
+                    })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    setFare(data.fare.toFixed(2));
+                    setEta(data.estimatedTimeMins.toString());
+                }
+            } catch (err) {
+                console.error("Error calculating fare", err);
+            } finally {
+                setIsCalculating(false);
+            }
+        };
+        calculateFare();
+    }, [params.pickupLat, params.pickupLon, params.dropoffLat, params.dropoffLon]);
     // Socket.io initialization
     useEffect(() => {
         if (!passengerId) return;
@@ -387,21 +418,20 @@ export default function RiderSelectionScreen() {
                 animationType="fade"
                 transparent={true}
                 visible={isCancelModalVisible}
-                onRequestClose={() => setIsCancelModalVisible(false)}
-            >
+                onRequestClose={() => setIsCancelModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Cancel Booking?</Text>
                         <Text style={styles.modalText}>Are you sure you want to cancel this booking?</Text>
                         <View style={styles.modalButtons}>
-                            <TouchableOpacity 
-                                style={[styles.modalButton, styles.modalButtonNo]} 
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalButtonNo]}
                                 onPress={() => setIsCancelModalVisible(false)}
                             >
                                 <Text style={styles.modalButtonTextNo}>No, Keep it</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={[styles.modalButton, styles.modalButtonYes]} 
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalButtonYes]}
                                 onPress={() => {
                                     setIsCancelModalVisible(false);
                                     router.back();
