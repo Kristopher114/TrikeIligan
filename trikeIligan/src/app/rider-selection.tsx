@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Image, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform, Image, Dimensions, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
@@ -25,6 +25,7 @@ export default function RiderSelectionScreen() {
     const [driverData, setDriverData] = useState<any>(null);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
     const [walletBalance, setWalletBalance] = useState<number>(0);
+    const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
     const socketRef = useRef<Socket | null>(null);
 
     // Load user info for socket
@@ -72,7 +73,7 @@ export default function RiderSelectionScreen() {
             setDriverData(data);
             setRideStatus('accepted');
         });
-        
+
         socket.on(`ride_declined_${passengerId}`, () => {
             alert("Driver declined. Please try booking again.");
             setRideStatus('idle');
@@ -93,7 +94,7 @@ export default function RiderSelectionScreen() {
             return;
         }
         setRideStatus('searching');
-        
+
         console.log("Emitting passenger_request_ride for", passengerId);
         // Emit ride request
         socketRef.current.emit('passenger_request_ride', {
@@ -178,12 +179,13 @@ export default function RiderSelectionScreen() {
     return (
         <SafeAreaView style={styles.safeArea} edges={['top']}>
             <StatusBar style="dark" backgroundColor="#FFFFFF" />
-            
+
             {/* Top Map Area */}
             <View style={styles.mapArea}>
                 {(params.pickupLat && params.dropoffLat) ? (
                     <WebView
-                        source={{ html: `
+                        source={{
+                            html: `
                         <!DOCTYPE html>
                         <html>
                         <head>
@@ -254,7 +256,7 @@ export default function RiderSelectionScreen() {
                         <Text style={styles.mapPlaceholderText}>No Coordinates Provided</Text>
                     </View>
                 )}
-                
+
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color="#000" />
                 </TouchableOpacity>
@@ -262,11 +264,10 @@ export default function RiderSelectionScreen() {
 
             {/* Bottom Sheet Area */}
             <View style={styles.bottomSheet}>
-                
+
                 {/* Header */}
                 <View style={styles.sheetHeader}>
                     <Text style={styles.sheetTitle}>Select Available Ride</Text>
-                    <Text style={styles.sheetSubtitle}>3 Riders Nearby</Text>
                 </View>
 
                 {/* Price */}
@@ -281,16 +282,16 @@ export default function RiderSelectionScreen() {
 
                 {/* Driver Card or Searching State */}
                 {rideStatus === 'idle' && (
-                    <View style={[styles.driverCard, {alignItems: 'center', padding: 32}]}>
-                        <Ionicons name="location-outline" size={48} color="#1B6E45" style={{marginBottom: 16}} />
+                    <View style={[styles.driverCard, { alignItems: 'center', padding: 32 }]}>
+                        <Ionicons name="location-outline" size={48} color="#1B6E45" style={{ marginBottom: 16 }} />
                         <Text style={styles.sheetTitle}>Ready to Book?</Text>
                         <Text style={styles.sheetSubtitle}>Tap confirm below to find a driver.</Text>
                     </View>
                 )}
 
                 {rideStatus === 'searching' && (
-                    <View style={[styles.driverCard, {alignItems: 'center', padding: 32}]}>
-                        <MaterialCommunityIcons name="radar" size={48} color="#1B6E45" style={{marginBottom: 16}} />
+                    <View style={[styles.driverCard, { alignItems: 'center', padding: 32 }]}>
+                        <MaterialCommunityIcons name="radar" size={48} color="#1B6E45" style={{ marginBottom: 16 }} />
                         <Text style={styles.sheetTitle}>Finding a Driver...</Text>
                         <Text style={styles.sheetSubtitle}>Please wait while we connect you to a nearby driver.</Text>
                     </View>
@@ -301,11 +302,11 @@ export default function RiderSelectionScreen() {
                         {/* Status Badge */}
                         <View style={styles.badgeRow}>
                             <View style={styles.statusBadge}>
-                                <Ionicons name="checkmark-circle" size={12} color="#1B6E45" style={{marginRight: 4}} />
+                                <Ionicons name="checkmark-circle" size={12} color="#1B6E45" style={{ marginRight: 4 }} />
                                 <Text style={styles.statusText}>Confirmed</Text>
                             </View>
                             <View style={styles.etaBadge}>
-                                <Ionicons name="time-outline" size={12} color="#000" style={{marginRight: 4}} />
+                                <Ionicons name="time-outline" size={12} color="#000" style={{ marginRight: 4 }} />
                                 <Text style={styles.etaText}>{eta} mins away</Text>
                             </View>
                         </View>
@@ -316,9 +317,9 @@ export default function RiderSelectionScreen() {
                                 <Ionicons name="person" size={24} color="#FFF" />
                             </View>
                             <View style={styles.driverInfo}>
-                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                     <Text style={styles.driverName}>{driverData.driverName || 'Driver'}</Text>
-                                    <Ionicons name="star" size={14} color="#FFD700" style={{marginLeft: 4, marginRight: 2}} />
+                                    <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 4, marginRight: 2 }} />
                                     <Text style={styles.ratingText}>{driverData.driverRating || '4.9'}</Text>
                                 </View>
                                 <Text style={styles.vehicleText}>{driverData.driverVehicle || 'Trike'}</Text>
@@ -334,15 +335,15 @@ export default function RiderSelectionScreen() {
                             <Text style={styles.routeAcceptedText}>Route accepted</Text>
                             <View style={styles.routeDetailsRow}>
                                 <Ionicons name="location" size={16} color="#1B6E45" />
-                                <View style={{marginLeft: 8}}>
+                                <View style={{ marginLeft: 8 }}>
                                     <Text style={styles.routeTitle}>Pickup → Dropoff</Text>
                                     <Text style={styles.routeDesc}>Fixed price • No extra charges</Text>
                                 </View>
                             </View>
-                            
+
                             {/* Track Button */}
                             <TouchableOpacity style={styles.trackButton}>
-                                <Ionicons name="paper-plane" size={16} color="#FFF" style={{marginRight: 8}} />
+                                <Ionicons name="paper-plane" size={16} color="#FFF" style={{ marginRight: 8 }} />
                                 <Text style={styles.trackButtonText}>Track</Text>
                             </TouchableOpacity>
                         </View>
@@ -351,7 +352,7 @@ export default function RiderSelectionScreen() {
 
                 {/* Payment Row */}
                 <TouchableOpacity style={styles.paymentRow} onPress={togglePaymentMethod} disabled={rideStatus !== 'idle'}>
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Ionicons name={paymentMethod === 'CASH' ? 'cash-outline' : 'wallet-outline'} size={20} color="#1B6E45" />
                         <Text style={styles.paymentText}>
                             {paymentMethod === 'CASH' ? 'Cash Payment' : 'Wallet Payment'}
@@ -369,17 +370,49 @@ export default function RiderSelectionScreen() {
                     </TouchableOpacity>
                 )}
                 {rideStatus === 'searching' && (
-                    <TouchableOpacity style={[styles.confirmButton, {backgroundColor: '#757575'}]} disabled>
+                    <TouchableOpacity style={[styles.confirmButton, { backgroundColor: '#757575' }]} disabled>
                         <Text style={styles.confirmButtonText}>Searching...</Text>
                     </TouchableOpacity>
                 )}
 
                 {/* Cancel Button */}
-                <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsCancelModalVisible(true)}>
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                
+
             </View>
+
+            {/* Cancel Confirmation Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={isCancelModalVisible}
+                onRequestClose={() => setIsCancelModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Cancel Booking?</Text>
+                        <Text style={styles.modalText}>Are you sure you want to cancel this booking?</Text>
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity 
+                                style={[styles.modalButton, styles.modalButtonNo]} 
+                                onPress={() => setIsCancelModalVisible(false)}
+                            >
+                                <Text style={styles.modalButtonTextNo}>No, Keep it</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.modalButton, styles.modalButtonYes]} 
+                                onPress={() => {
+                                    setIsCancelModalVisible(false);
+                                    router.back();
+                                }}
+                            >
+                                <Text style={styles.modalButtonTextYes}>Yes, Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -563,6 +596,65 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 12,
+    },
+    mapHeaderTitle: {
+        fontFamily: 'Outfit_600SemiBold',
+        fontSize: 16,
+        color: '#333333',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 24,
+        width: '80%',
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontFamily: 'Outfit_700Bold',
+        fontSize: 20,
+        color: '#333333',
+        marginBottom: 12,
+    },
+    modalText: {
+        fontFamily: 'Outfit_400Regular',
+        fontSize: 16,
+        color: '#666666',
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    modalButtonNo: {
+        backgroundColor: '#E4F6EB',
+    },
+    modalButtonYes: {
+        backgroundColor: '#FFEBEE',
+    },
+    modalButtonTextNo: {
+        fontFamily: 'Outfit_600SemiBold',
+        color: '#1B6E45',
+        fontSize: 16,
+    },
+    modalButtonTextYes: {
+        fontFamily: 'Outfit_600SemiBold',
+        color: '#D32F2F',
+        fontSize: 16,
     },
     routeTitle: {
         fontFamily: 'Outfit_600SemiBold',
