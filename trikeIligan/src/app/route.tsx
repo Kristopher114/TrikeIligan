@@ -5,6 +5,7 @@ import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RouteScreen() {
     const router = useRouter();
@@ -19,6 +20,13 @@ export default function RouteScreen() {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [activeTab, setActiveTab] = useState('Recent');
+    const [preferredLocations, setPreferredLocations] = useState([]);
+
+    useEffect(() => {
+        AsyncStorage.getItem('preferredLocations').then(data => {
+            if (data) setPreferredLocations(JSON.parse(data));
+        });
+    }, []);
 
     const searchTimeout = useRef(null);
 
@@ -81,11 +89,13 @@ export default function RouteScreen() {
     }, [dropoffQuery, activeInput]);
 
     const handleSelectResult = (place) => {
-        if (activeInput === 'pickup') {
-            setPickupQuery(place.display_name);
+        const inputToFill = activeInput || (pickupQuery ? 'dropoff' : 'pickup');
+        const displayName = place.display_name || place.address || place.name;
+        if (inputToFill === 'pickup') {
+            setPickupQuery(displayName);
             setPickupCoords({ lat: place.lat, lon: place.lon });
-        } else if (activeInput === 'dropoff') {
-            setDropoffQuery(place.display_name);
+        } else {
+            setDropoffQuery(displayName);
             setDropoffCoords({ lat: place.lat, lon: place.lon });
         }
         setSearchResults([]);
@@ -242,6 +252,16 @@ export default function RouteScreen() {
                                         : 'Type to search...')}
                             </Text>
                         </View>
+                    ) : activeTab === 'Favorites' && preferredLocations.length > 0 ? (
+                        preferredLocations.map((place, index) => (
+                            <TouchableOpacity key={`fav-${index}`} style={styles.listItem} onPress={() => handleSelectResult(place)}>
+                                <Ionicons name="star" size={24} color="#FFA500" style={styles.listIcon} />
+                                <View style={styles.listItemTextContainer}>
+                                    <Text style={styles.listItemTitle} numberOfLines={1}>{place.address.split(',')[0]}</Text>
+                                    <Text style={styles.listItemSubtitle} numberOfLines={2}>{place.address}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))
                     ) : (
                         // No locations available
                         <View style={{ padding: 24, alignItems: 'center' }}>
