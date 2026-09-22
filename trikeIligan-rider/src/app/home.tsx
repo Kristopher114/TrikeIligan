@@ -87,6 +87,7 @@ export default function RiderHome() {
     const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'completed'>('idle');
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showPassengerCancelledModal, setShowPassengerCancelledModal] = useState(false);
     const [timer, setTimer] = useState(15);
     const [currentRideOffer, setCurrentRideOffer] = useState<any>(null);
     const [currentLocation, setCurrentLocation] = useState<{ lat: number, lon: number } | null>(null);
@@ -174,6 +175,28 @@ export default function RiderHome() {
             setLiveEta(eta);
         }
     }, [currentLocation, rideState, currentRideOffer]);
+
+    // Listener for Passenger Cancellation
+    useEffect(() => {
+        if (socketRef.current && driverId) {
+            const socket = socketRef.current;
+            const eventName = `ride_cancelled_by_passenger_${driverId}`;
+            
+            const handleCancel = (data: any) => {
+                if (rideStateRef.current !== 'idle') {
+                    setRideState('idle');
+                    setCurrentRideOffer(null);
+                    setShowPassengerCancelledModal(true);
+                }
+            };
+            
+            socket.on(eventName, handleCancel);
+            
+            return () => {
+                socket.off(eventName, handleCancel);
+            };
+        }
+    }, [driverId]);
 
     // LOCATION & SOCKET INIT
     useEffect(() => {
@@ -616,6 +639,23 @@ export default function RiderHome() {
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.btnWarningConfirm} onPress={() => { setShowCancelModal(false); setRideState('idle'); }}>
                                 <Text style={styles.btnWarningConfirmText}>Yes, Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={showPassengerCancelledModal} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.warningModalBox}>
+                        <View style={styles.warningIconCircle}>
+                            <Ionicons name="information-circle" size={48} color="#FFF" />
+                        </View>
+                        <Text style={styles.warningModalTitle}>Ride Cancelled</Text>
+                        <Text style={styles.warningModalText}>The passenger has cancelled the ride. You have been placed back into looking for rides.</Text>
+                        <View style={styles.warningButtonsRow}>
+                            <TouchableOpacity style={[styles.btnWarningConfirm, { flex: 1, marginLeft: 0 }]} onPress={() => setShowPassengerCancelledModal(false)}>
+                                <Text style={styles.btnWarningConfirmText}>Okay</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

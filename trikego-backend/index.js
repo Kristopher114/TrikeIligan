@@ -603,6 +603,12 @@ io.on('connection', (socket) => {
   });
 
   // 6. Ride status updates (Picked Up, Completed, Cancelled)
+  socket.on('passenger_cancel_ride', (data) => {
+    io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
+    if (data.driverId) {
+      io.emit(`ride_cancelled_by_passenger_${data.driverId}`, { rideId: data.rideId });
+    }
+  });
   socket.on('passenger_picked_up', (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
     if (data.passengerId) {

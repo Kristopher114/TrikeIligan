@@ -432,6 +432,12 @@ export default function RiderSelectionScreen() {
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.modalButtonYes]}
                                 onPress={() => {
+                                    if (socketRef.current && driverData) {
+                                        socketRef.current.emit('passenger_cancel_ride', {
+                                            rideId: driverData.rideId,
+                                            driverId: driverData.driverId
+                                        });
+                                    }
                                     setIsCancelModalVisible(false);
                                     router.back();
                                 }}
