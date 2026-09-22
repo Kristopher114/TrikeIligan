@@ -77,9 +77,9 @@ export default function RiderSelectionScreen() {
                     })
                 });
                 const data = await response.json();
-                if (data.status === 'success') {
-                    setFare(data.fare.toFixed(2));
-                    setEta(data.estimatedTimeMins.toString());
+                if (data.status === 'success' && data.data) {
+                    setFare(data.data.fare.toFixed(2));
+                    setEta(data.data.estimatedTimeMins.toString());
                 }
             } catch (err) {
                 console.error("Error calculating fare", err);
