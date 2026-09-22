@@ -1,15 +1,18 @@
 import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
-import { useRouter } from 'expo-router';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [isCheckingLogin, setIsCheckingLogin] = useState(true);
 
   useEffect(() => {
+    if (!rootNavigationState?.key) return;
+    
     const checkLoginStatus = async () => {
       try {
         const userName = await AsyncStorage.getItem('userFullName');
@@ -24,7 +27,7 @@ export default function HomeScreen() {
       }
     };
     checkLoginStatus();
-  }, []);
+  }, [rootNavigationState?.key]);
 
   const [fontsLoaded] = useFonts({
     Outfit_700Bold,
