@@ -48,3 +48,14 @@
   - Upgraded the database schema to classify every driver with a specific `vehicle_type` ('SINGLE' or 'TRICYCLE').
   - Modified the backend Socket.IO dispatch logic (`passenger_request_ride`) to automatically filter available drivers. 
   - Drivers will now *only* receive a `new_ride_request` popup if their registered vehicle type perfectly matches the passenger's requested vehicle type.
+
+### September 22, 2026 - Ride Lifecycle & Cancellation Handling
+- **Ride Arrival & Handshake**:
+  - Implemented real-time status syncing. Tapping `"PASSENGER PICKED UP"` now updates the passenger's app UI to show they are actively in-transit.
+  - Tapping `"CONFIRM PAYMENT & RATE"` emits a `ride_completed` signal, gracefully ending the driver's active ride session and prompting the passenger to rate the driver.
+- **Robust Cancellation Shield**:
+  - Engineered a bulletproof socket listener for passenger cancellations.
+  - **Searching phase**: If the passenger cancels before the driver accepts, the app receives a `cancel_ride_offer` event and instantly dismisses the ringing request modal.
+  - **Active phase**: If the passenger cancels *after* the driver has accepted (while driving to pickup or during the ride), the app receives a `ride_cancelled_by_passenger_<driverId>` event.
+  - Solved a complex React `useEffect` lifecycle bug to guarantee the cancellation listeners correctly bind *after* the network socket connects.
+  - The driver app now instantly wipes the active ride screen and alerts the driver via a `"Ride Cancelled"` modal, immediately returning them to the idle pool to receive new requests.

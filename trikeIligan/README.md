@@ -142,3 +142,17 @@ This document serves as a complete log of everything we accomplished during our 
   - Connected the 'Single' and 'Trike' buttons on the Home screen to pass the `vehicleType` parameter to the booking flow and Socket.IO event, ensuring passengers only request the specific vehicle they want.
 - **Network Resolution**:
   - Fixed a severe `SyntaxError: JSON Parse error: Unexpected character: N` crash in the Passenger app caused by incorrect API fetch URLs pointing to a non-existent domain (`trikego-backend.onrender.com`). Corrected all endpoints to the live `trikeiligan.onrender.com` server.
+
+### September 22, 2026 - Ride Lifecycle & Cancellation Flow
+- **Post-Ride Rating System**:
+  - Engineered a seamless real-time handoff at the end of a ride. When the driver taps `"CONFIRM PAYMENT & RATE"`, it triggers a `ride_completed_<userId>` socket event.
+  - The Passenger App listens for this event, automatically dismisses the active ride screen, and instantly displays a rating modal for the passenger to rate the driver.
+  - Added a new `/api/rate-driver` backend endpoint to process and store these ratings.
+- **Dynamic UI Updates**:
+  - Tapping `"PASSENGER PICKED UP"` in the driver app now emits a `passenger_picked_up` socket event.
+  - The passenger app dynamically reacts to this by changing its header text to `"You are picked up by [driverName]"`.
+- **Comprehensive Cancellation Architecture**:
+  - Built a two-tier real-time cancellation system to protect drivers from being left hanging.
+  - **Pre-Acceptance Cancellation**: If a passenger cancels while the app is still searching, it emits a `cancel_ride_offer` event with the specific `rideId`. The backend broadcasts this to all available drivers, instantly dismissing the ringing `"NEW RIDE REQUEST"` modal.
+  - **Post-Acceptance Cancellation**: If the passenger cancels after a driver has already accepted, it sends a targeted `ride_cancelled_by_passenger_<driverId>` signal.
+  - The driver app now instantly wipes active ride data, resets the UI back to the idle map, and alerts the driver with a `"Ride Cancelled"` modal across all stages of the trip.
