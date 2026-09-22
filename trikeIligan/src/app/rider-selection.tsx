@@ -21,7 +21,7 @@ export default function RiderSelectionScreen() {
 
     const [passengerId, setPassengerId] = useState<string | null>(null);
     const [passengerName, setPassengerName] = useState<string>('Passenger');
-    const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'accepted'>('idle');
+    const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'accepted' | 'picked_up'>('idle');
     const [driverData, setDriverData] = useState<any>(null);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
     const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -110,6 +110,11 @@ export default function RiderSelectionScreen() {
         socket.on(`ride_declined_${passengerId}`, () => {
             alert("Driver declined. Please try booking again.");
             setRideStatus('idle');
+        });
+
+        socket.on(`ride_picked_up_${passengerId}`, (data) => {
+            console.log('Driver picked up passenger!');
+            setRideStatus('picked_up');
         });
 
         socket.on(`ride_completed_${passengerId}`, (data) => {
@@ -305,7 +310,11 @@ export default function RiderSelectionScreen() {
 
                 {/* Header */}
                 <View style={styles.sheetHeader}>
-                    <Text style={styles.sheetTitle}>Select Available Ride</Text>
+                    <Text style={styles.sheetTitle}>
+                        {rideStatus === 'picked_up' && driverData?.driverName
+                            ? `You are picked up by ${driverData.driverName}`
+                            : 'Select Available Ride'}
+                    </Text>
                 </View>
 
                 {/* Price */}
@@ -335,7 +344,7 @@ export default function RiderSelectionScreen() {
                     </View>
                 )}
 
-                {rideStatus === 'accepted' && driverData && (
+                {(rideStatus === 'accepted' || rideStatus === 'picked_up') && driverData && (
                     <View style={styles.driverCard}>
                         {/* Status Badge */}
                         <View style={styles.badgeRow}>

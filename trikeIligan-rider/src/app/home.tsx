@@ -516,7 +516,15 @@ export default function RiderHome() {
                         <Text style={styles.btnNavigateText}>Open Navigation</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => setRideState('completed')}>
+                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => {
+                        if (socketRef.current && currentRideOffer) {
+                            socketRef.current.emit('passenger_picked_up', {
+                                rideId: currentRideOffer.rideId,
+                                passengerId: currentRideOffer.passengerId
+                            });
+                        }
+                        setRideState('completed');
+                    }}>
                         <Text style={styles.btnPickedUpText}>PASSENGER PICKED UP</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setShowCancelModal(true)}>
