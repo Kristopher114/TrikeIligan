@@ -6,8 +6,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { useRef, useState, useEffect } from 'react';
-import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -64,6 +64,7 @@ export default function MapScreen() {
     const [bookingStep, setBookingStep] = useState(params.mode || 'PICKUP'); // 'PICKUP' | 'DESTINATION'
     const [pickupLocation, setPickupLocation] = useState(params.pickup ? { address: params.pickup } : null);
     const [destinationLocation, setDestinationLocation] = useState(null);
+    const [preferredLocation, setprefferedLocation] = useState('');
 
     // Sync booking step if params change (e.g., screen is re-opened from router stack)
     useEffect(() => {
@@ -76,31 +77,6 @@ export default function MapScreen() {
     const [mapCenterAddress, setMapCenterAddress] = useState('Loading location...');
     const [mapCenterCoords, setMapCenterCoords] = useState({ lat: 8.2280, lon: 124.2452 });
     const [isReversingLocation, setIsReversingLocation] = useState(false);
-
-    // Preferred Locations
-    const [preferredLocations, setPreferredLocations] = useState([]);
-
-    useEffect(() => {
-        AsyncStorage.getItem('preferredLocations').then(data => {
-            if (data) setPreferredLocations(JSON.parse(data));
-        });
-    }, []);
-
-    const togglePreferredLocation = async () => {
-        const isPreferred = preferredLocations.some(loc => loc.address === mapCenterAddress);
-        let newLocations;
-        if (isPreferred) {
-            newLocations = preferredLocations.filter(loc => loc.address !== mapCenterAddress);
-        } else {
-            newLocations = [...preferredLocations, {
-                address: mapCenterAddress,
-                lat: mapCenterCoords.lat,
-                lon: mapCenterCoords.lon
-            }];
-        }
-        setPreferredLocations(newLocations);
-        await AsyncStorage.setItem('preferredLocations', JSON.stringify(newLocations));
-    };
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -252,7 +228,26 @@ export default function MapScreen() {
         flyToLocation(lat, lon);
     };
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
+        if (!mapCenterAddress || mapCenterAddress === 'Loading location...' || mapCenterAddress === 'Locating...') {
+            return;
+        }
+        
+        try {
+            const data = await AsyncStorage.getItem('recentLocations');
+            let recent = data ? JSON.parse(data) : [];
+            const newLocation = {
+                address: mapCenterAddress,
+                lat: mapCenterCoords.lat,
+                lon: mapCenterCoords.lon,
+            };
+            const filtered = recent.filter(loc => loc.address !== mapCenterAddress);
+            const updated = [newLocation, ...filtered].slice(0, 10);
+            await AsyncStorage.setItem('recentLocations', JSON.stringify(updated));
+        } catch (error) {
+            console.error("Error saving recent location", error);
+        }
+
         if (bookingStep === 'PICKUP') {
             setPickupLocation({ address: mapCenterAddress, ...mapCenterCoords });
 
@@ -335,6 +330,29 @@ export default function MapScreen() {
         Outfit_400Regular,
     });
 
+    // Preferred Locations
+    const [preferredLocations, setPreferredLocations] = useState([]);
+    useEffect(() => {
+        AsyncStorage.getItem('preferredLocations').then(data => {
+            if (data) setPreferredLocations(JSON.parse(data));
+        });
+    }, []);
+    const togglePreferredLocation = async () => {
+        const isPreferred = preferredLocations.some(loc => loc.address === mapCenterAddress);
+        let newLocations;
+        if (isPreferred) {
+            newLocations = preferredLocations.filter(loc => loc.address !== mapCenterAddress);
+        } else {
+            newLocations = [...preferredLocations, {
+                address: mapCenterAddress,
+                lat: mapCenterCoords.lat,
+                lon: mapCenterCoords.lon
+            }];
+        }
+        setPreferredLocations(newLocations);
+        await AsyncStorage.setItem('preferredLocations', JSON.stringify(newLocations));
+    };
+
     if (!fontsLoaded) return null;
 
     return (
@@ -406,18 +424,11 @@ export default function MapScreen() {
                             {mapCenterAddress}
                         </Text>
                     </View>
-                    <Pressable 
-                        style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}
-                        onPress={togglePreferredLocation}
-                    >
+                    <Pressable style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }} onPress={togglePreferredLocation}>
                         {isReversingLocation ? (
                             <ActivityIndicator size="small" color="#1B6E45" />
                         ) : (
-                            <Ionicons 
-                                name={preferredLocations.some(loc => loc.address === mapCenterAddress) ? "star" : "star-outline"} 
-                                size={24} 
-                                color="#FFA500" 
-                            />
+                            <Ionicons name={preferredLocations.some(loc => loc.address === mapCenterAddress) ? "star" : "star-outline"} size={24} color="#FFA500" />
                         )}
                     </Pressable>
                 </View>
