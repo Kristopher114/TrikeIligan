@@ -21,10 +21,14 @@ export default function RouteScreen() {
     const [isSearching, setIsSearching] = useState(false);
     const [activeTab, setActiveTab] = useState('Recent');
     const [preferredLocations, setPreferredLocations] = useState([]);
+    const [recentLocations, setRecentLocations] = useState([]);
 
     useEffect(() => {
         AsyncStorage.getItem('preferredLocations').then(data => {
             if (data) setPreferredLocations(JSON.parse(data));
+        });
+        AsyncStorage.getItem('recentLocations').then(data => {
+            if (data) setRecentLocations(JSON.parse(data));
         });
     }, []);
 
@@ -88,6 +92,19 @@ export default function RouteScreen() {
         if (activeInput === 'dropoff') performSearch(dropoffQuery);
     }, [dropoffQuery, activeInput]);
 
+    const saveRecentLocation = async (place) => {
+        const displayName = place.display_name || place.address || place.name;
+        const newLocation = {
+            address: displayName,
+            lat: place.lat,
+            lon: place.lon,
+        };
+        const filtered = recentLocations.filter(loc => loc.address !== displayName);
+        const updated = [newLocation, ...filtered].slice(0, 10);
+        setRecentLocations(updated);
+        await AsyncStorage.setItem('recentLocations', JSON.stringify(updated));
+    };
+
     const handleSelectResult = (place) => {
         const inputToFill = activeInput || (pickupQuery ? 'dropoff' : 'pickup');
         const displayName = place.display_name || place.address || place.name;
@@ -100,6 +117,7 @@ export default function RouteScreen() {
         }
         setSearchResults([]);
         setActiveInput(null);
+        saveRecentLocation(place);
     };
 
     const handleMapIconPress = (type) => {
@@ -256,6 +274,16 @@ export default function RouteScreen() {
                         preferredLocations.map((place, index) => (
                             <TouchableOpacity key={`fav-${index}`} style={styles.listItem} onPress={() => handleSelectResult(place)}>
                                 <Ionicons name="star" size={24} color="#FFA500" style={styles.listIcon} />
+                                <View style={styles.listItemTextContainer}>
+                                    <Text style={styles.listItemTitle} numberOfLines={1}>{place.address.split(',')[0]}</Text>
+                                    <Text style={styles.listItemSubtitle} numberOfLines={2}>{place.address}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    ) : activeTab === 'Recent' && recentLocations.length > 0 ? (
+                        recentLocations.map((place, index) => (
+                            <TouchableOpacity key={`recent-${index}`} style={styles.listItem} onPress={() => handleSelectResult(place)}>
+                                <Ionicons name="time" size={24} color="#757575" style={styles.listIcon} />
                                 <View style={styles.listItemTextContainer}>
                                     <Text style={styles.listItemTitle} numberOfLines={1}>{place.address.split(',')[0]}</Text>
                                     <Text style={styles.listItemSubtitle} numberOfLines={2}>{place.address}</Text>
