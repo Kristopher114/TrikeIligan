@@ -25,6 +25,7 @@ export default function RiderSelectionScreen() {
     const [driverData, setDriverData] = useState<any>(null);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
     const [walletBalance, setWalletBalance] = useState<number>(0);
+    const [showPickupConfirm, setShowPickupConfirm] = useState(false);
     const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
     const socketRef = useRef<Socket | null>(null);
 
@@ -108,6 +109,10 @@ export default function RiderSelectionScreen() {
         socket.on(`ride_declined_${passengerId}`, () => {
             alert("Driver declined. Please try booking again.");
             setRideStatus('idle');
+        });
+
+        socket.on(`ride_picked_up_${passengerId}`, (data) => {
+            setShowPickupConfirm(true);
         });
 
         return () => {
@@ -361,23 +366,6 @@ export default function RiderSelectionScreen() {
                             </View>
                         </View>
 
-                        {/* Route Info inside card */}
-                        <View style={styles.routeAcceptedBox}>
-                            <Text style={styles.routeAcceptedText}>Route accepted</Text>
-                            <View style={styles.routeDetailsRow}>
-                                <Ionicons name="location" size={16} color="#1B6E45" />
-                                <View style={{ marginLeft: 8 }}>
-                                    <Text style={styles.routeTitle}>Pickup → Dropoff</Text>
-                                    <Text style={styles.routeDesc}>Fixed price • No extra charges</Text>
-                                </View>
-                            </View>
-
-                            {/* Track Button */}
-                            <TouchableOpacity style={styles.trackButton}>
-                                <Ionicons name="paper-plane" size={16} color="#FFF" style={{ marginRight: 8 }} />
-                                <Text style={styles.trackButtonText}>Track</Text>
-                            </TouchableOpacity>
-                        </View>
                     </View>
                 )}
 
@@ -440,6 +428,32 @@ export default function RiderSelectionScreen() {
                                 <Text style={styles.modalButtonTextYes}>Yes, Cancel</Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Pickup Confirmation Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={showPickupConfirm}
+                onRequestClose={() => setShowPickupConfirm(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Confirm Pickup</Text>
+                        <Text style={[styles.modalText, { marginBottom: 24 }]}>Your driver indicated you've been picked up. Are you in the tricycle?</Text>
+                        
+                        <TouchableOpacity
+                            style={[styles.confirmButton, { width: '100%' }]}
+                            onPress={() => {
+                                if (socketRef.current && driverData) {
+                                    socketRef.current.emit('confirm_pickup', { driverId: driverData.driverId, rideId: driverData.rideId });
+                                }
+                                setShowPickupConfirm(false);
+                            }}
+                        >
+                            <Text style={styles.confirmButtonText}>Yes, Already Picked Up</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>

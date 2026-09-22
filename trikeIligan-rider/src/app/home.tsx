@@ -84,7 +84,7 @@ export default function RiderHome() {
     const [isMenuVisible, setIsMenuVisible] = useState(false);
 
     // REAL-TIME RIDE STATES
-    const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'completed'>('idle');
+    const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'waiting_pickup_confirm' | 'completed'>('idle');
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [timer, setTimer] = useState(15);
@@ -226,6 +226,10 @@ export default function RiderHome() {
                 setCurrentRideOffer(data);
                 setRideState('request');
             }
+        });
+
+        socket.on('pickup_confirmed', (data) => {
+            setRideState('completed');
         });
 
         return () => {
@@ -511,12 +515,40 @@ export default function RiderHome() {
                         </View>
                     </View>
 
-                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => setRideState('completed')}>
+                    <TouchableOpacity style={styles.btnNavigate} onPress={handleNavigate}>
+                        <Ionicons name="navigate-circle" size={24} color="#FFF" />
+                        <Text style={styles.btnNavigateText}>Open Navigation</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => {
+                        if (currentRideOffer?.paymentMethod === 'CASH') {
+                            if (socketRef.current) {
+                                socketRef.current.emit('passenger_picked_up', { 
+                                    rideId: currentRideOffer.rideId, 
+                                    passengerId: currentRideOffer.passengerId 
+                                });
+                            }
+                            setRideState('waiting_pickup_confirm');
+                        } else {
+                            setRideState('completed');
+                        }
+                    }}>
                         <Text style={styles.btnPickedUpText}>PASSENGER PICKED UP</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setShowCancelModal(true)}>
                         <Text style={styles.cancelRideText}>Cancel Ride</Text>
                     </TouchableOpacity>
+                </View>
+            )}
+
+            {/* 3.5 WAITING PICKUP CONFIRM */}
+            {rideState === 'waiting_pickup_confirm' && (
+                <View style={[styles.bottomSheet, { paddingBottom: 40 }]}>
+                    <ActivityIndicator size="large" color="#1B6E45" style={{ marginBottom: 16 }} />
+                    <Text style={styles.completedTitle}>Waiting for Passenger</Text>
+                    <Text style={[styles.completedSubtitle, { textAlign: 'center', marginHorizontal: 20 }]}>
+                        The passenger has been prompted to confirm the pickup. Please wait...
+                    </Text>
                 </View>
             )}
 
@@ -550,7 +582,7 @@ export default function RiderHome() {
                         placeholderTextColor="#999"
                     />
 
-                    <TouchableOpacity style={styles.btnConfirmPayment} onPress={() => { 
+                    <TouchableOpacity style={styles.btnConfirmPayment} onPress={() => {
                         if (socketRef.current && currentRideOffer) {
                             socketRef.current.emit('ride_completed', {
                                 rideId: currentRideOffer.rideId,
@@ -560,8 +592,8 @@ export default function RiderHome() {
                                 fare: currentRideOffer.fare
                             });
                         }
-                        setRideState('idle'); 
-                        setIsOnline(true); 
+                        setRideState('idle');
+                        setIsOnline(true);
                     }}>
                         <Text style={styles.btnConfirmPaymentText}>CONFIRM PAYMENT & RATE</Text>
                     </TouchableOpacity>
