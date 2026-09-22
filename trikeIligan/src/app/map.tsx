@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, TouchableOpacity, Platform, TextInput, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform, TextInput, ActivityIndicator, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { useRef, useState, useEffect } from 'react';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -75,6 +76,31 @@ export default function MapScreen() {
     const [mapCenterAddress, setMapCenterAddress] = useState('Loading location...');
     const [mapCenterCoords, setMapCenterCoords] = useState({ lat: 8.2280, lon: 124.2452 });
     const [isReversingLocation, setIsReversingLocation] = useState(false);
+
+    // Preferred Locations
+    const [preferredLocations, setPreferredLocations] = useState([]);
+
+    useEffect(() => {
+        AsyncStorage.getItem('preferredLocations').then(data => {
+            if (data) setPreferredLocations(JSON.parse(data));
+        });
+    }, []);
+
+    const togglePreferredLocation = async () => {
+        const isPreferred = preferredLocations.some(loc => loc.address === mapCenterAddress);
+        let newLocations;
+        if (isPreferred) {
+            newLocations = preferredLocations.filter(loc => loc.address !== mapCenterAddress);
+        } else {
+            newLocations = [...preferredLocations, {
+                address: mapCenterAddress,
+                lat: mapCenterCoords.lat,
+                lon: mapCenterCoords.lon
+            }];
+        }
+        setPreferredLocations(newLocations);
+        await AsyncStorage.setItem('preferredLocations', JSON.stringify(newLocations));
+    };
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -380,13 +406,20 @@ export default function MapScreen() {
                             {mapCenterAddress}
                         </Text>
                     </View>
-                    <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
+                    <Pressable 
+                        style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}
+                        onPress={togglePreferredLocation}
+                    >
                         {isReversingLocation ? (
                             <ActivityIndicator size="small" color="#1B6E45" />
                         ) : (
-                            <Ionicons name="star-outline" size={24} color="#FFA500" />
+                            <Ionicons 
+                                name={preferredLocations.some(loc => loc.address === mapCenterAddress) ? "star" : "star-outline"} 
+                                size={24} 
+                                color="#FFA500" 
+                            />
                         )}
-                    </View>
+                    </Pressable>
                 </View>
 
                 <TouchableOpacity
