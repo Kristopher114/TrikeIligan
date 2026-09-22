@@ -82,6 +82,7 @@ export default function RiderHome() {
     const webviewRef = useRef<WebView>(null);
     const [isOnline, setIsOnline] = useState(false);
     const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const [isSocketReady, setIsSocketReady] = useState(false);
 
     // REAL-TIME RIDE STATES
     const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'completed'>('idle');
@@ -178,7 +179,7 @@ export default function RiderHome() {
 
     // Listener for Passenger Cancellation
     useEffect(() => {
-        if (socketRef.current && driverId) {
+        if (isSocketReady && socketRef.current && driverId) {
             const socket = socketRef.current;
             const eventName = `ride_cancelled_by_passenger_${driverId}`;
             
@@ -196,7 +197,7 @@ export default function RiderHome() {
                 socket.off(eventName, handleCancel);
             };
         }
-    }, [driverId]);
+    }, [driverId, isSocketReady]);
 
     // LOCATION & SOCKET INIT
     useEffect(() => {
@@ -236,6 +237,7 @@ export default function RiderHome() {
             transports: ['websocket']
         });
         socketRef.current = socket;
+        setIsSocketReady(true);
 
         // Auto-rejoin if socket reconnects (e.g. when Render backend wakes up)
         socket.on('connect', () => {
@@ -248,6 +250,22 @@ export default function RiderHome() {
             if (rideStateRef.current === 'idle') {
                 setCurrentRideOffer(data);
                 setRideState('request');
+            }
+        });
+
+        socket.on('cancel_ride_offer', (data) => {
+            if (rideStateRef.current === 'request') {
+                // We use setRideState which has access to the latest state via closure, 
+                // but checking currentRideOffer might be tricky due to closures.
+                // However, since we just need to dismiss the request if it matches:
+                setCurrentRideOffer((prev: any) => {
+                    if (prev && prev.rideId === data.rideId) {
+                        setRideState('idle');
+                        setShowPassengerCancelledModal(true);
+                        return null;
+                    }
+                    return prev;
+                });
             }
         });
 

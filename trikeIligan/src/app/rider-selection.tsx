@@ -21,6 +21,7 @@ export default function RiderSelectionScreen() {
 
     const [passengerId, setPassengerId] = useState<string | null>(null);
     const [passengerName, setPassengerName] = useState<string>('Passenger');
+    const [currentRideId, setCurrentRideId] = useState<string | null>(null);
     const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'accepted' | 'picked_up'>('idle');
     const [driverData, setDriverData] = useState<any>(null);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'WALLET'>('CASH');
@@ -138,10 +139,13 @@ export default function RiderSelectionScreen() {
         }
         setRideStatus('searching');
 
+        const newRideId = `ride_${Date.now()}`;
+        setCurrentRideId(newRideId);
+
         console.log("Emitting passenger_request_ride for", passengerId);
         // Emit ride request
         socketRef.current.emit('passenger_request_ride', {
-            rideId: `ride_${Date.now()}`,
+            rideId: newRideId,
             passengerId: passengerId,
             passengerName: passengerName,
             pickup: params.pickup || 'Current Location',
@@ -432,10 +436,10 @@ export default function RiderSelectionScreen() {
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.modalButtonYes]}
                                 onPress={() => {
-                                    if (socketRef.current && driverData) {
+                                    if (socketRef.current && currentRideId) {
                                         socketRef.current.emit('passenger_cancel_ride', {
-                                            rideId: driverData.rideId,
-                                            driverId: driverData.driverId
+                                            rideId: currentRideId,
+                                            driverId: driverData?.driverId
                                         });
                                     }
                                     setIsCancelModalVisible(false);

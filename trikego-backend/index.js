@@ -605,6 +605,7 @@ io.on('connection', (socket) => {
   // 6. Ride status updates (Picked Up, Completed, Cancelled)
   socket.on('passenger_cancel_ride', (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
+    io.emit('cancel_ride_offer', { rideId: data.rideId });
     if (data.driverId) {
       io.emit(`ride_cancelled_by_passenger_${data.driverId}`, { rideId: data.rideId });
     }
