@@ -571,13 +571,6 @@ io.on('connection', (socket) => {
   // 6. Ride status updates (Picked Up, Completed, Cancelled)
   socket.on('passenger_picked_up', (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
-    if (data.passengerId) {
-      io.emit(`ride_picked_up_${data.passengerId}`, { rideId: data.rideId });
-    }
-  });
-
-  socket.on('confirm_pickup', (data) => {
-    io.to(`ride_${data.rideId}`).emit('pickup_confirmed', { rideId: data.rideId });
   });
 
   socket.on('ride_completed', async (data) => {

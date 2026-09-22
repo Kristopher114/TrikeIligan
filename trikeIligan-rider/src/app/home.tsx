@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput, Linking, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput, Linking, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -84,7 +84,7 @@ export default function RiderHome() {
     const [isMenuVisible, setIsMenuVisible] = useState(false);
 
     // REAL-TIME RIDE STATES
-    const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'waiting_pickup_confirm' | 'completed'>('idle');
+    const [rideState, setRideState] = useState<'idle' | 'request' | 'active' | 'completed'>('idle');
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [timer, setTimer] = useState(15);
@@ -226,10 +226,6 @@ export default function RiderHome() {
                 setCurrentRideOffer(data);
                 setRideState('request');
             }
-        });
-
-        socket.on('pickup_confirmed', (data) => {
-            setRideState('completed');
         });
 
         return () => {
@@ -520,35 +516,12 @@ export default function RiderHome() {
                         <Text style={styles.btnNavigateText}>Open Navigation</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => {
-                        if (currentRideOffer?.paymentMethod === 'CASH') {
-                            if (socketRef.current) {
-                                socketRef.current.emit('passenger_picked_up', { 
-                                    rideId: currentRideOffer.rideId, 
-                                    passengerId: currentRideOffer.passengerId 
-                                });
-                            }
-                            setRideState('waiting_pickup_confirm');
-                        } else {
-                            setRideState('completed');
-                        }
-                    }}>
+                    <TouchableOpacity style={styles.btnPickedUp} onPress={() => setRideState('completed')}>
                         <Text style={styles.btnPickedUpText}>PASSENGER PICKED UP</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setShowCancelModal(true)}>
                         <Text style={styles.cancelRideText}>Cancel Ride</Text>
                     </TouchableOpacity>
-                </View>
-            )}
-
-            {/* 3.5 WAITING PICKUP CONFIRM */}
-            {rideState === 'waiting_pickup_confirm' && (
-                <View style={[styles.bottomSheet, { paddingBottom: 40 }]}>
-                    <ActivityIndicator size="large" color="#1B6E45" style={{ marginBottom: 16 }} />
-                    <Text style={styles.completedTitle}>Waiting for Passenger</Text>
-                    <Text style={[styles.completedSubtitle, { textAlign: 'center', marginHorizontal: 20 }]}>
-                        The passenger has been prompted to confirm the pickup. Please wait...
-                    </Text>
                 </View>
             )}
 
