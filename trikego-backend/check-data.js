@@ -25,6 +25,10 @@ async function checkData() {
     `);
     console.table(driverResult.rows);
 
+    console.log("\n=== TRANSACTIONS TABLE ===");
+    const transactionsResult = await client.query('SELECT * FROM Transactions');
+    console.table(transactionsResult.rows);
+
     client.release();
   } catch (err) {
     console.error('Error fetching data:', err);

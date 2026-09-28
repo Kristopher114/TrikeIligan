@@ -102,13 +102,13 @@ export default function RidesScreen() {
             <StatusBar style="dark" backgroundColor="#FFFFFF" />
             <View style={styles.container}>
                 {/* Header */}
-                <View style={styles.header}>
+                <Text style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#333" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Ride History</Text>
                     <View style={{ width: 24 }} /> {/* Spacer */}
-                </View>
+                </Text>
 
                 {/* Ride List */}
                 {isLoading ? (
