@@ -760,7 +760,10 @@ export default function RiderHome() {
                         </View>
 
                         <View style={styles.menuItemsList}>
-                            <TouchableOpacity style={styles.menuItem}>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => {
+                                setIsMenuVisible(false);
+                                router.push('/rides');
+                            }}>
                                 <Ionicons name="time-outline" size={24} color="#444" style={styles.menuItemIcon} />
                                 <Text style={styles.menuItemText}>Ride History</Text>
                             </TouchableOpacity>

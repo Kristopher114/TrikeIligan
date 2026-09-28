@@ -487,6 +487,32 @@ app.get('/api/rides/:userId', async (req, res) => {
   }
 });
 
+// Fetch Driver Ride History Endpoint
+app.get('/api/driver-rides/:driverId', async (req, res) => {
+  const { driverId } = req.params;
+  const client = await pool.connect();
+  try {
+    const query = `
+      SELECT r.id, r.pickup_address, r.dropoff_address, r.base_fare, r.payment_method, r.created_at, r.status,
+             u.full_name as passenger_name
+      FROM Rides r
+      LEFT JOIN Users u ON r.passenger_id = u.id
+      WHERE r.driver_id = $1
+      ORDER BY r.created_at DESC
+    `;
+    const result = await client.query(query, [driverId]);
+    res.json({
+      status: 'success',
+      rides: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching driver rides:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch driver rides' });
+  } finally {
+    client.release();
+  }
+});
+
 // Rate Driver Endpoint
 app.post('/api/rate-driver', async (req, res) => {
   const { driverId, passengerId, rating } = req.body;
