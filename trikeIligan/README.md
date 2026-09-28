@@ -156,3 +156,18 @@ This document serves as a complete log of everything we accomplished during our 
   - **Pre-Acceptance Cancellation**: If a passenger cancels while the app is still searching, it emits a `cancel_ride_offer` event with the specific `rideId`. The backend broadcasts this to all available drivers, instantly dismissing the ringing `"NEW RIDE REQUEST"` modal.
   - **Post-Acceptance Cancellation**: If the passenger cancels after a driver has already accepted, it sends a targeted `ride_cancelled_by_passenger_<driverId>` signal.
   - The driver app now instantly wipes active ride data, resets the UI back to the idle map, and alerts the driver with a `"Ride Cancelled"` modal across all stages of the trip.
+### September 28, 2026 - Digital Wallet & Driver Cashout System
+- **Ride History (Passenger & Driver)**:
+  - Passengers can view a detailed log of their past rides, including pickup/dropoff locations, fares, and the specific payment method (CASH or WALLET).
+  - Built a new `GET /api/driver-rides/:driverId` endpoint and a dedicated `rides.tsx` history screen for drivers, allowing them to track the passengers they have serviced.
+- **Wallet Payment Integration**:
+  - Engineered an end-to-end digital wallet system. Passengers can pay for rides using their PayPal-topped-up Wallet.
+  - The backend executes a precise SQL transaction during `ride_completed` to instantly deduct funds from the passenger and credit them to the driver's wallet.
+  - Drivers receive an immediate `wallet_payment_success` socket event, triggering a green "Payment Received!" modal in the Driver app.
+- **Driver Dashboard & Real-Time Stats**:
+  - Implemented `/api/driver-stats/:id` to aggregate a driver's total rides and gross daily earnings across all payment types using PostgreSQL's `CURRENT_DATE`.
+  - The Driver app seamlessly updates "Today's Earnings" and "Total Rides" on the dashboard without requiring a manual refresh.
+- **Driver PayPal Cashout**:
+  - Developed a robust `POST /api/wallet/payout` backend endpoint utilizing the official PayPal `v1/payments/payouts` Sandbox API.
+  - Added a dedicated `earnings.tsx` cashout screen for drivers to withdraw their digital earnings instantly to their personal PayPal account.
+  - Secured the process using PostgreSQL `FOR UPDATE` row-level locking to prevent race conditions during withdrawals, logging every successful transfer into the `Transactions` table as a `WITHDRAWAL`.
