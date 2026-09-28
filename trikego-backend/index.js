@@ -109,6 +109,48 @@ app.post('/api/signup', async (req, res) => {
   }
 });
 
+// Admin Login Endpoint
+app.post('/api/admin-login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ status: 'error', message: 'Email and password are required' });
+  }
+  const client = await pool.connect();
+  try {
+    const query = `
+      SELECT u.id, u.full_name, u.password_hash, u.role, u.email
+      FROM Users u
+      JOIN Admins a ON u.id = a.user_id
+      WHERE u.email = $1
+    `;
+    const result = await client.query(query, [email]);
+    if (result.rows.length === 0) {
+      return res.status(401).json({ status: 'error', message: 'Invalid credentials or not an admin' });
+    }
+    const user = result.rows[0];
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
+    }
+    res.json({
+      status: 'success',
+      message: 'Login successful',
+      token: 'mock-jwt-token-admin',
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
 // Login Endpoint
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
