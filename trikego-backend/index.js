@@ -690,6 +690,11 @@ io.on('connection', (socket) => {
         
         await client.query('COMMIT');
         console.log(`Wallet payment processed for ride ${data.rideId}`);
+        
+        // Notify the driver that the payment was successful
+        io.emit(`wallet_payment_success_${data.driverId}`, { 
+            amount: fareAmount 
+        });
       } catch (e) {
         await client.query('ROLLBACK');
         console.error('Wallet payment error:', e);

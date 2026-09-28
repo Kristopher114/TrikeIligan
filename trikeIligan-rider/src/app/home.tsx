@@ -89,6 +89,8 @@ export default function RiderHome() {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showPassengerCancelledModal, setShowPassengerCancelledModal] = useState(false);
+    const [showWalletSuccessModal, setShowWalletSuccessModal] = useState(false);
+    const [walletPaymentAmount, setWalletPaymentAmount] = useState(0);
     const [timer, setTimer] = useState(15);
     const [currentRideOffer, setCurrentRideOffer] = useState<any>(null);
     const [currentLocation, setCurrentLocation] = useState<{ lat: number, lon: number } | null>(null);
@@ -191,10 +193,17 @@ export default function RiderHome() {
                 }
             };
             
+            const handleWalletSuccess = (data: any) => {
+                setWalletPaymentAmount(data.amount);
+                setShowWalletSuccessModal(true);
+            };
+            
             socket.on(eventName, handleCancel);
+            socket.on(`wallet_payment_success_${driverId}`, handleWalletSuccess);
             
             return () => {
                 socket.off(eventName, handleCancel);
+                socket.off(`wallet_payment_success_${driverId}`, handleWalletSuccess);
             };
         }
     }, [driverId, isSocketReady]);
@@ -663,6 +672,26 @@ export default function RiderHome() {
                                 <Text style={styles.btnWarningConfirmText}>Yes, Cancel</Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Wallet Payment Success Modal */}
+            <Modal visible={showWalletSuccessModal} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.warningModalBox}>
+                        <View style={[styles.warningIconCircle, { backgroundColor: '#1B6E45' }]}>
+                            <Ionicons name="checkmark-circle" size={48} color="#FFF" />
+                        </View>
+                        <Text style={styles.warningModalTitle}>Payment Received!</Text>
+                        <Text style={styles.warningModalText}>
+                            ₱{walletPaymentAmount} has been successfully added to your wallet balance.
+                        </Text>
+                        <TouchableOpacity 
+                            style={[styles.btnWarningConfirm, { backgroundColor: '#1B6E45', width: '100%', marginTop: 16 }]} 
+                            onPress={() => setShowWalletSuccessModal(false)}>
+                            <Text style={styles.btnWarningConfirmText}>Great!</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
