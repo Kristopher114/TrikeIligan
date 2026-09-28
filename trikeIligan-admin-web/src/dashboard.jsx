@@ -6,7 +6,7 @@ import {
     MdSettings,
     MdOutlineMap
 } from "react-icons/md";
-import './dashboard.css';
+import './css/dashboard.css';
 
 export default function Dashboard() {
     return (

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FaMotorcycle } from "react-icons/fa6";
-import './Login.css';
+import './css/Login.css';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -18,11 +18,11 @@ export default function Login({ onLogin }) {
       // Map username to the seeded email
       const email = username === 'admin_iligan' ? 'admin_iligan@trikeiligan.com' : username;
 
-      const response = await fetch('https://trikeiligan.onrender.com/api/auth/login', {
+      const response = await fetch('https://trikeiligan.onrender.com/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phoneOrEmail: email,
+          email: email,
           password: password
         })
       });
