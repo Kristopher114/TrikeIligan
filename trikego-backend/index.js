@@ -679,13 +679,13 @@ io.on('connection', (socket) => {
         // Log transaction for passenger
         await client.query(`
           INSERT INTO Transactions (user_id, amount, transaction_type, status)
-          VALUES ($1, $2, 'PAYMENT', 'COMPLETED')
+          VALUES ($1, $2, 'FARE_PAYMENT', 'COMPLETED')
         `, [data.passengerId, -fareAmount]);
         
         // Log transaction for driver
         await client.query(`
           INSERT INTO Transactions (user_id, amount, transaction_type, status)
-          VALUES ($1, $2, 'PAYMENT', 'COMPLETED')
+          VALUES ($1, $2, 'EARNING', 'COMPLETED')
         `, [data.driverId, fareAmount]);
         
         await client.query('COMMIT');
