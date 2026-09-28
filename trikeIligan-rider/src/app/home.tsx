@@ -97,6 +97,9 @@ export default function RiderHome() {
     const [liveEta, setLiveEta] = useState<number>(5);
     const socketRef = useRef<Socket | null>(null);
 
+    const [todaysEarnings, setTodaysEarnings] = useState(0);
+    const [totalRides, setTotalRides] = useState(0);
+
     const [driverId, setDriverId] = useState<string>('');
     const [driverName, setDriverName] = useState<string>('');
     const [driverVehicle, setDriverVehicle] = useState<string>('');
@@ -129,6 +132,22 @@ export default function RiderHome() {
                 if (vehicle) setDriverVehicle(vehicle);
                 if (vType) setVehicleType(vType);
                 if (rating) setDriverRating(rating);
+
+                // Fetch real stats from backend
+                if (id) {
+                    try {
+                        const statsRes = await fetch(`https://trikeiligan.onrender.com/api/driver-stats/${id}`);
+                        if (statsRes.ok) {
+                            const statsJson = await statsRes.json();
+                            if (statsJson.status === 'success') {
+                                setTotalRides(statsJson.data.totalRides);
+                                setTodaysEarnings(statsJson.data.todayEarnings);
+                            }
+                        }
+                    } catch (err) {
+                        console.log("Failed to fetch driver stats", err);
+                    }
+                }
             } catch (e) {
                 console.error("Failed to load driver info", e);
             }
@@ -424,12 +443,12 @@ export default function RiderHome() {
                 <View style={styles.earningsFloatingCard}>
                     <View style={styles.earningCol}>
                         <Text style={styles.earningLabel}>Today's Earnings</Text>
-                        <Text style={styles.earningValue}>₱ 0.00</Text>
+                        <Text style={styles.earningValue}>₱ {todaysEarnings.toFixed(2)}</Text>
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.earningCol}>
                         <Text style={styles.earningLabel}>Total Rides</Text>
-                        <Text style={styles.earningValue}>0</Text>
+                        <Text style={styles.earningValue}>{totalRides}</Text>
                     </View>
                 </View>
             )}
@@ -626,6 +645,9 @@ export default function RiderHome() {
                                 paymentMethod: currentRideOffer.paymentMethod || 'CASH',
                                 fare: currentRideOffer.fare
                             });
+                            // Optimistically update stats
+                            setTodaysEarnings(prev => prev + parseFloat(currentRideOffer.fare || '0'));
+                            setTotalRides(prev => prev + 1);
                         }
                         setRideState('idle');
                         setIsOnline(true);

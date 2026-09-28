@@ -713,6 +713,40 @@ io.on('connection', (socket) => {
   });
 });
 
+// Driver Stats Endpoint (Today's Earnings & Total Rides)
+app.get('/api/driver-stats/:id', async (req, res) => {
+  try {
+    const driverId = req.params.id;
+    
+    // Total Completed Rides
+    const ridesQuery = await pool.query(
+      "SELECT COUNT(*) as total_rides FROM Rides WHERE driver_id = $1 AND status = 'COMPLETED'",
+      [driverId]
+    );
+    
+    // Today's Earnings
+    // Using PostgreSQL CURRENT_DATE to get today's completed rides
+    const earningsQuery = await pool.query(
+      "SELECT SUM(base_fare) as today_earnings FROM Rides WHERE driver_id = $1 AND status = 'COMPLETED' AND DATE(completed_at) = CURRENT_DATE",
+      [driverId]
+    );
+
+    const totalRides = parseInt(ridesQuery.rows[0].total_rides) || 0;
+    const todayEarnings = parseFloat(earningsQuery.rows[0].today_earnings) || 0;
+
+    res.json({
+      status: 'success',
+      data: {
+        totalRides,
+        todayEarnings
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching driver stats:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 // Start the server
 server.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);
