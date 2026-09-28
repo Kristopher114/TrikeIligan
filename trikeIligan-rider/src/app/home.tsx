@@ -768,7 +768,10 @@ export default function RiderHome() {
                                 <Text style={styles.menuItemText}>Ride History</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.menuItem}>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => {
+                                setIsMenuVisible(false);
+                                router.push('/earnings');
+                            }}>
                                 <Ionicons name="wallet-outline" size={24} color="#444" style={styles.menuItemIcon} />
                                 <Text style={styles.menuItemText}>Earnings</Text>
                             </TouchableOpacity>

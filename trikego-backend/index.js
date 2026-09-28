@@ -461,6 +461,94 @@ app.post('/api/wallet/paypal/capture-order', async (req, res) => {
   }
 });
 
+// POST PayPal Payout (Driver Cashout)
+app.post('/api/wallet/payout', async (req, res) => {
+  const { userId, amount, paypalEmail } = req.body;
+
+  if (!userId || !amount || amount <= 0 || !paypalEmail) {
+    return res.status(400).json({ status: 'error', message: 'Invalid payout request data' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Lock the user row and check balance
+    const userRes = await client.query('SELECT wallet_balance FROM Users WHERE id = $1 FOR UPDATE', [userId]);
+    if (userRes.rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const currentBalance = parseFloat(userRes.rows[0].wallet_balance || 0);
+    if (currentBalance < amount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance' });
+    }
+
+    // 2. Call PayPal Payouts API
+    const accessToken = await getPayPalAccessToken();
+    const batchId = `Payout_${Date.now()}_${userId}`;
+    
+    const payoutData = {
+      sender_batch_header: {
+        sender_batch_id: batchId,
+        email_subject: "You have a payout from TrikeGo!",
+        email_message: "Here is your requested withdrawal from TrikeGo earnings."
+      },
+      items: [
+        {
+          recipient_type: "EMAIL",
+          amount: {
+            value: parseFloat(amount).toFixed(2),
+            currency: "PHP"
+          },
+          note: "Thanks for driving with TrikeIligan!",
+          sender_item_id: `item_${Date.now()}`,
+          receiver: paypalEmail,
+        }
+      ]
+    };
+
+    let payoutResponse;
+    try {
+      payoutResponse = await axios.post('https://api-m.sandbox.paypal.com/v1/payments/payouts', payoutData, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (paypalErr) {
+      console.error('PayPal payout error:', paypalErr.response ? paypalErr.response.data : paypalErr.message);
+      // Let the frontend know the API call failed (could be due to unapproved merchant account for payouts)
+      await client.query('ROLLBACK');
+      return res.status(500).json({ 
+        status: 'error', 
+        message: 'PayPal Payout failed. Your merchant account might not be enabled for Payouts.' 
+      });
+    }
+
+    const payoutBatchId = payoutResponse.data.batch_header.payout_batch_id;
+
+    // 3. Deduct balance and record transaction
+    await client.query('UPDATE Users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [amount, userId]);
+    
+    await client.query(`
+      INSERT INTO Transactions (user_id, amount, transaction_type, status, reference_id)
+      VALUES ($1, $2, 'WITHDRAWAL', 'COMPLETED', $3)
+    `, [userId, -amount, payoutBatchId]);
+
+    await client.query('COMMIT');
+    res.json({ status: 'success', message: 'Payout successful', batchId: payoutBatchId });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Database/Payout transaction error:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error during payout' });
+  } finally {
+    client.release();
+  }
+});
+
+
 // Fetch Ride History Endpoint
 app.get('/api/rides/:userId', async (req, res) => {
   const { userId } = req.params;
