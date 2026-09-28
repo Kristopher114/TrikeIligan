@@ -66,8 +66,15 @@ export default function RidesScreen() {
             </View>
 
             <View style={styles.locationContainer}>
+                <Ionicons name="location-outline" size={20} color="#1B6E45" />
+                <Text style={styles.destinationText} numberOfLines={1}>
+                    {item.pickup_address}
+                </Text>
+            </View>
+
+            <View style={[styles.locationContainer, { marginTop: -8 }]}>
                 <Ionicons name="location" size={20} color="#D32F2F" />
-                <Text style={styles.destinationText} numberOfLines={2}>
+                <Text style={styles.destinationText} numberOfLines={1}>
                     {item.dropoff_address}
                 </Text>
             </View>
@@ -79,10 +86,13 @@ export default function RidesScreen() {
                 </View>
 
                 <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={20} color="#1B6E45" />
+                    <Ionicons name={item.payment_method === 'WALLET' ? 'wallet-outline' : 'cash-outline'} size={20} color="#1B6E45" />
                     <Text style={[styles.detailText, { color: '#1B6E45', fontFamily: 'Outfit_600SemiBold' }]}>
                         ₱{item.base_fare}
                     </Text>
+                    <View style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginLeft: 6 }}>
+                        <Text style={{ fontSize: 10, color: '#1B6E45', fontFamily: 'Outfit_700Bold' }}>{item.payment_method || 'CASH'}</Text>
+                    </View>
                 </View>
             </View>
         </View>

@@ -53,13 +53,14 @@ const createTables = async () => {
 
     -- 5. Rides Table
     CREATE TABLE IF NOT EXISTS Rides (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id VARCHAR(50) PRIMARY KEY,
         passenger_id UUID REFERENCES Users(id),
         driver_id UUID REFERENCES Users(id),
         status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
         pickup_address TEXT NOT NULL,
         dropoff_address TEXT NOT NULL,
         base_fare DECIMAL(10, 2) NOT NULL,
+        payment_method VARCHAR(20) DEFAULT 'CASH',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
     );

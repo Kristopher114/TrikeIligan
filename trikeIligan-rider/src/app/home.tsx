@@ -355,7 +355,11 @@ export default function RiderHome() {
             vehicleType: vehicleType,
             driverRating: driverRating,
             rideId: currentRideOffer.rideId,
-            passengerId: currentRideOffer.passengerId
+            passengerId: currentRideOffer.passengerId,
+            pickup: currentRideOffer.pickup,
+            dropoff: currentRideOffer.dropoff,
+            fare: currentRideOffer.fare,
+            paymentMethod: currentRideOffer.paymentMethod
         });
 
         setRideState('active');

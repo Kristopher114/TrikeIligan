@@ -467,7 +467,7 @@ app.get('/api/rides/:userId', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT r.id, r.pickup_address, r.dropoff_address, r.base_fare, r.created_at, r.status,
+      SELECT r.id, r.pickup_address, r.dropoff_address, r.base_fare, r.payment_method, r.created_at, r.status,
              u.full_name as driver_name
       FROM Rides r
       LEFT JOIN Users u ON r.driver_id = u.id
@@ -582,6 +582,21 @@ io.on('connection', (socket) => {
     
     // Link both to a specific active ride room
     socket.join(`ride_${data.rideId}`);
+
+    // Insert into Rides table
+    (async () => {
+      const client = await pool.connect();
+      try {
+        await client.query(`
+          INSERT INTO Rides (id, passenger_id, driver_id, status, pickup_address, dropoff_address, base_fare, payment_method)
+          VALUES ($1, $2, $3, 'ACCEPTED', $4, $5, $6, $7)
+        `, [data.rideId, data.passengerId, data.driverId, data.pickup || '', data.dropoff || '', data.fare || 0, data.paymentMethod || 'CASH']);
+      } catch (e) {
+        console.error('Error inserting ride into DB:', e);
+      } finally {
+        client.release();
+      }
+    })();
   });
 
   // 4. Driver declines ride
@@ -609,12 +624,28 @@ io.on('connection', (socket) => {
     if (data.driverId) {
       io.emit(`ride_cancelled_by_passenger_${data.driverId}`, { rideId: data.rideId });
     }
+
+    // Update in DB
+    (async () => {
+      const client = await pool.connect();
+      try {
+        await client.query("UPDATE Rides SET status = 'CANCELLED' WHERE id = $1", [data.rideId]);
+      } catch(e) {} finally { client.release(); }
+    })();
   });
   socket.on('passenger_picked_up', (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
     if (data.passengerId) {
       io.emit(`ride_picked_up_${data.passengerId}`, { rideId: data.rideId });
     }
+
+    // Update in DB
+    (async () => {
+      const client = await pool.connect();
+      try {
+        await client.query("UPDATE Rides SET status = 'IN_PROGRESS' WHERE id = $1", [data.rideId]);
+      } catch(e) {} finally { client.release(); }
+    })();
   });
 
   socket.on('ride_completed', async (data) => {
@@ -622,6 +653,15 @@ io.on('connection', (socket) => {
     if (data.passengerId) {
       io.emit(`ride_completed_${data.passengerId}`, { rideId: data.rideId });
     }
+
+    // Update in DB
+    const updateRideDB = async () => {
+      const client = await pool.connect();
+      try {
+        await client.query("UPDATE Rides SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = $1", [data.rideId]);
+      } catch(e) {} finally { client.release(); }
+    };
+    updateRideDB();
     
     // Process wallet transaction if payment method is WALLET
     if (data.paymentMethod === 'WALLET' && data.passengerId && data.driverId && data.fare) {
