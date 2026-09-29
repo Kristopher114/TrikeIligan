@@ -185,6 +185,25 @@ export default function SignupScreen() {
                                 </TouchableOpacity>
                             </View>
                         </View>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Driver's License Photo (Required)</Text>
+                            <TouchableOpacity 
+                                style={{
+                                    borderWidth: 1, 
+                                    borderColor: '#E2E8F0', 
+                                    borderStyle: 'dashed', 
+                                    borderRadius: 12, 
+                                    padding: 20, 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    backgroundColor: '#F8FAFC'
+                                }}
+                                onPress={() => alert('Image picker will open here in the future')}
+                            >
+                                <Ionicons name="camera-outline" size={24} color="#64748B" />
+                                <Text style={{ color: '#64748B', marginTop: 8, fontSize: 14 }}>Tap to upload license photo</Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Password</Text>
