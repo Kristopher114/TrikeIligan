@@ -40,7 +40,18 @@ const createTables = async () => {
         vehicle_type VARCHAR(20) DEFAULT 'TRICYCLE' CHECK (vehicle_type IN ('SINGLE', 'TRICYCLE')),
         rating DECIMAL(3, 2) DEFAULT 5.00,
         is_active BOOLEAN DEFAULT false,
+        approval_status VARCHAR(20) DEFAULT 'PENDING' CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+        license_photo_url TEXT,
+        rejection_reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 3.5 System Config Table
+    CREATE TABLE IF NOT EXISTS System_Config (
+        id INT PRIMARY KEY DEFAULT 1,
+        base_fare DECIMAL(10, 2) DEFAULT 20.00,
+        per_km_rate DECIMAL(10, 2) DEFAULT 5.00,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     -- 4. Admins Table (For admin-specific data only)

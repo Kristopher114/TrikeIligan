@@ -903,6 +903,113 @@ app.get('/api/driver-stats/:id', async (req, res) => {
   }
 });
 
+// ==========================================
+// ADMIN ENDPOINTS
+// ==========================================
+
+// GET Pending Drivers
+app.get('/api/admin/drivers/pending', async (req, res) => {
+  try {
+    const query = `
+      SELECT u.id as user_id, u.full_name, u.phone_number, u.email, 
+             d.id as driver_id, d.license_number, d.vehicle_plate, d.vehicle_model, 
+             d.license_photo_url, d.created_at
+      FROM Drivers d
+      JOIN Users u ON d.user_id = u.id
+      WHERE d.approval_status = 'PENDING'
+    `;
+    const result = await pool.query(query);
+    res.json({ status: 'success', data: result.rows });
+  } catch (err) {
+    console.error('Error fetching pending drivers:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// POST Approve Driver
+app.post('/api/admin/drivers/:id/approve', async (req, res) => {
+  const driverId = req.params.id; // user_id or driver_id
+  try {
+    const result = await pool.query(
+      "UPDATE Drivers SET approval_status = 'APPROVED', is_active = true WHERE user_id = $1 RETURNING *",
+      [driverId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ status: 'error', message: 'Driver not found' });
+    res.json({ status: 'success', message: 'Driver approved successfully' });
+  } catch (err) {
+    console.error('Error approving driver:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// POST Reject Driver
+app.post('/api/admin/drivers/:id/reject', async (req, res) => {
+  const driverId = req.params.id;
+  const { reason } = req.body;
+  try {
+    const result = await pool.query(
+      "UPDATE Drivers SET approval_status = 'REJECTED', rejection_reason = $2 WHERE user_id = $1 RETURNING *",
+      [driverId, reason || 'No reason provided']
+    );
+    if (result.rowCount === 0) return res.status(404).json({ status: 'error', message: 'Driver not found' });
+    res.json({ status: 'success', message: 'Driver rejected successfully' });
+  } catch (err) {
+    console.error('Error rejecting driver:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// GET System Config
+app.get('/api/admin/config', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM System_Config WHERE id = 1");
+    if (result.rowCount === 0) {
+      return res.json({ status: 'success', data: { base_fare: 20.0, per_km_rate: 5.0 } });
+    }
+    res.json({ status: 'success', data: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching config:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// PUT System Config
+app.put('/api/admin/config', async (req, res) => {
+  const { base_fare, per_km_rate } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO System_Config (id, base_fare, per_km_rate) VALUES (1, $1, $2)
+       ON CONFLICT (id) DO UPDATE SET base_fare = EXCLUDED.base_fare, per_km_rate = EXCLUDED.per_km_rate, updated_at = CURRENT_TIMESTAMP`,
+      [base_fare, per_km_rate]
+    );
+    res.json({ status: 'success', message: 'Config updated successfully' });
+  } catch (err) {
+    console.error('Error updating config:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// GET Reports (Analytics)
+app.get('/api/admin/reports', async (req, res) => {
+  try {
+    const ridesQuery = await pool.query("SELECT COUNT(*) as total FROM Rides WHERE status = 'COMPLETED'");
+    const revenueQuery = await pool.query("SELECT SUM(base_fare) as total_revenue FROM Rides WHERE status = 'COMPLETED'");
+    const activeDriversQuery = await pool.query("SELECT COUNT(*) as total FROM Drivers WHERE is_active = true");
+    
+    res.json({
+      status: 'success',
+      data: {
+        totalRides: parseInt(ridesQuery.rows[0].total) || 0,
+        totalRevenue: parseFloat(revenueQuery.rows[0].total_revenue) || 0,
+        activeDrivers: parseInt(activeDriversQuery.rows[0].total) || 0
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching reports:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 // Start the server
 server.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);
