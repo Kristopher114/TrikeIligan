@@ -99,6 +99,7 @@ export default function RiderHome() {
 
     const [todaysEarnings, setTodaysEarnings] = useState(0);
     const [totalRides, setTotalRides] = useState(0);
+    const [baseFareAmount, setBaseFareAmount] = useState(0);
 
     const [driverId, setDriverId] = useState<string>('');
     const [driverName, setDriverName] = useState<string>('');
@@ -155,6 +156,23 @@ export default function RiderHome() {
         loadDriverInfo();
     }, []);
 
+    useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const res = await fetch('https://trikeiligan.onrender.com/api/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'success' && data.data) {
+                        setBaseFareAmount(Number(data.data.base_fare) || 15);
+                    }
+                }
+            } catch (err) {
+                console.log("Failed to fetch system config:", err);
+            }
+        };
+        fetchConfig();
+    }, []);
+
     // DEMO TIMER LOGIC FOR RIDE REQUEST
     useEffect(() => {
         let interval: NodeJS.Timeout;
@@ -203,7 +221,7 @@ export default function RiderHome() {
         if (isSocketReady && socketRef.current && driverId) {
             const socket = socketRef.current;
             const eventName = `ride_cancelled_by_passenger_${driverId}`;
-            
+
             const handleCancel = (data: any) => {
                 if (rideStateRef.current !== 'idle') {
                     setRideState('idle');
@@ -211,15 +229,15 @@ export default function RiderHome() {
                     setShowPassengerCancelledModal(true);
                 }
             };
-            
+
             const handleWalletSuccess = (data: any) => {
                 setWalletPaymentAmount(data.amount);
                 setShowWalletSuccessModal(true);
             };
-            
+
             socket.on(eventName, handleCancel);
             socket.on(`wallet_payment_success_${driverId}`, handleWalletSuccess);
-            
+
             return () => {
                 socket.off(eventName, handleCancel);
                 socket.off(`wallet_payment_success_${driverId}`, handleWalletSuccess);
@@ -442,13 +460,18 @@ export default function RiderHome() {
             {rideState === 'idle' && (
                 <View style={styles.earningsFloatingCard}>
                     <View style={styles.earningCol}>
-                        <Text style={styles.earningLabel}>Today's Earnings</Text>
-                        <Text style={styles.earningValue}>₱ {todaysEarnings.toFixed(2)}</Text>
+                        <Text style={styles.earningLabel} numberOfLines={1} adjustsFontSizeToFit>Earnings</Text>
+                        <Text style={styles.earningValue} numberOfLines={1} adjustsFontSizeToFit>₱ {todaysEarnings.toFixed(2)}</Text>
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.earningCol}>
-                        <Text style={styles.earningLabel}>Total Rides</Text>
-                        <Text style={styles.earningValue}>{totalRides}</Text>
+                        <Text style={styles.earningLabel} numberOfLines={1} adjustsFontSizeToFit>Total Rides</Text>
+                        <Text style={styles.earningValue} numberOfLines={1} adjustsFontSizeToFit>{totalRides}</Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.earningCol}>
+                        <Text style={styles.earningLabel} numberOfLines={1} adjustsFontSizeToFit>Base Fare</Text>
+                        <Text style={styles.earningValue} numberOfLines={1} adjustsFontSizeToFit>₱ {baseFareAmount.toFixed(2)}</Text>
                     </View>
                 </View>
             )}
@@ -709,8 +732,8 @@ export default function RiderHome() {
                         <Text style={styles.warningModalText}>
                             ₱{walletPaymentAmount} has been successfully added to your wallet balance.
                         </Text>
-                        <TouchableOpacity 
-                            style={[styles.btnWarningConfirm, { backgroundColor: '#1B6E45', width: '100%', marginTop: 16 }]} 
+                        <TouchableOpacity
+                            style={[styles.btnWarningConfirm, { backgroundColor: '#1B6E45', width: '100%', marginTop: 16 }]}
                             onPress={() => setShowWalletSuccessModal(false)}>
                             <Text style={styles.btnWarningConfirmText}>Great!</Text>
                         </TouchableOpacity>
@@ -806,11 +829,11 @@ const styles = StyleSheet.create({
     navigateFloatingBtn: { flexDirection: 'row', position: 'absolute', top: 80, right: 20, backgroundColor: '#1B6E45', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
     navigateFloatingText: { fontFamily: 'Outfit_700Bold', color: '#FFF', fontSize: 14, marginLeft: 8 },
 
-    earningsFloatingCard: { position: 'absolute', bottom: 230, left: 20, right: 20, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 6 },
-    earningCol: { flex: 1 },
+    earningsFloatingCard: { position: 'absolute', bottom: 230, left: 20, right: 20, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 6 },
+    earningCol: { flex: 1, alignItems: 'center' },
     divider: { width: 1, backgroundColor: '#EEEEEE', marginHorizontal: 16 },
     earningLabel: { fontFamily: 'Outfit_500Medium', fontSize: 12, color: '#888', marginBottom: 4 },
-    earningValue: { fontFamily: 'Outfit_700Bold', fontSize: 22, color: '#222' },
+    earningValue: { fontFamily: 'Outfit_700Bold', fontSize: 15, color: '#222' },
 
     bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 10 },
     sheetHandle: { width: 40, height: 4, backgroundColor: '#E0E0E0', borderRadius: 2, marginBottom: 24 },

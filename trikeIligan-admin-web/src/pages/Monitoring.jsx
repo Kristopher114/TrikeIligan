@@ -58,11 +58,11 @@ export default function Monitoring() {
                             <div className="stat-value">{liveStats.activeDrivers}</div>
                             <div className="stat-trend positive">Live Tracking Active</div>
                         </div>
-                        <div className="stat-card">
+                        {/* <div className="stat-card">
                             <h3>Ongoing Rides</h3>
                             <div className="stat-value">{liveStats.ongoingRides}</div>
                             <div className="stat-trend neutral">Same as average</div>
-                        </div>
+                        </div> */}
                         <div className="stat-card">
                             <h3>Daily Revenue</h3>
                             <div className="stat-value">₱4,250</div>
@@ -71,13 +71,13 @@ export default function Monitoring() {
                     </div>
 
                     {/* Map Area */}
-                    <div className="map-container">
+                    {/* <div className="map-container">
                         <div className="map-placeholder">
                             <MdOutlineMap size={48} color="#A5D6A7" style={{ marginBottom: 16 }} />
                             <h3>Live Map Rendering...</h3>
                             <p>Interactive map of Iligan City plotting active tricycles will appear here.</p>
                         </div>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Right Column (Dispatch Logs) */}

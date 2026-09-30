@@ -901,6 +901,20 @@ io.on('connection', (socket) => {
     broadcastAdminStats();
   });
 });
+// System Config Endpoint
+app.get('/api/config', async (req, res) => {
+  try {
+    const query = await pool.query("SELECT * FROM System_Config LIMIT 1");
+    if (query.rows.length > 0) {
+      res.json({ status: 'success', data: query.rows[0] });
+    } else {
+      res.json({ status: 'success', data: { base_fare: 15.00, per_km_rate: 5.00 } });
+    }
+  } catch (error) {
+    console.error('Error fetching config:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch config' });
+  }
+});
 
 // Driver Stats Endpoint (Today's Earnings & Total Rides)
 app.get('/api/driver-stats/:id', async (req, res) => {
