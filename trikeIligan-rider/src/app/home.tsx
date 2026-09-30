@@ -245,6 +245,31 @@ export default function RiderHome() {
         }
     }, [driverId, isSocketReady]);
 
+    // Handle manual refresh of location
+    const handleRefreshLocation = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                alert('Permission to access location was denied');
+                return;
+            }
+
+            // Using Balanced accuracy to avoid emulator crashes
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const lat = loc.coords.latitude;
+            const lng = loc.coords.longitude;
+            
+            setCurrentLocation({ lat, lon: lng });
+            
+            if (webviewRef.current) {
+                webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lng}); true;`);
+            }
+        } catch (e) {
+            console.log("Error refreshing location:", e);
+            alert("Could not get exact location. Make sure GPS is enabled in your device settings.");
+        }
+    };
+
     // LOCATION & SOCKET INIT
     useEffect(() => {
         let locationSubscription: Location.LocationSubscription;
@@ -443,8 +468,8 @@ export default function RiderHome() {
                         <Text style={styles.locationText}>Iligan City</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.circularButton}>
-                        <Ionicons name="notifications-outline" size={24} color="#333" />
+                    <TouchableOpacity style={styles.circularButton} onPress={handleRefreshLocation}>
+                        <Ionicons name="location-outline" size={24} color="#333" />
                     </TouchableOpacity>
                 </View>
 
