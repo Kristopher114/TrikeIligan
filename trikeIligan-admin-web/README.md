@@ -14,3 +14,9 @@ This is the Vite-based React application serving as the administrative dashboard
 - **One-Click Approval/Rejection**:
   - Connected the Admin approval UI directly to the live backend.
   - Clicking "Approve" instantly updates the PostgreSQL database to mark the driver as `APPROVED`, instantly unlocking their access to the mobile Driver App.
+
+### September 30, 2026 - Live Socket.IO Dispatch Tracking
+- **Live Dispatch Dashboard**:
+  - Integrated the `socket.io-client` into the Admin Web application, instantly bridging it to the backend's real-time event pipeline.
+  - The `Monitoring.jsx` dashboard now accurately displays live connection counts of on-duty drivers from the `available_drivers` socket room.
+  - The dashboard dynamically tracks and visually updates active `IN_PROGRESS` rides across the city in perfect real-time synchronization, without requiring manual browser refreshes.

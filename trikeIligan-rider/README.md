@@ -84,3 +84,11 @@
   - Integrated `expo-image-picker` allowing new drivers to select a photo of their driver's license during the registration flow.
   - Engineered a robust, end-to-end direct image upload system using `expo-file-system/legacy` to bypass common React Native `FormData` crash bugs.
   - Driver photos are securely streamed directly to a Cloudinary cloud storage bucket using unsigned presets, returning a live image URL that is stored natively in PostgreSQL.
+
+### September 30, 2026 - Driver App Polish & Map Overhaul
+- **Dynamic Fare Configuration**:
+  - Implemented a live query to fetch the `base_fare` directly from the PostgreSQL `System_Config` table.
+  - Re-designed the 3-column driver dashboard to cleanly display the dynamic base fare directly, preventing visual overflow and text wrapping issues on smaller screens.
+- **Location Reliability Improvements**:
+  - Engineered a `handleRefreshLocation` manual toggle button directly onto the map screen.
+  - Decreased default location accuracy requests to `Balanced` and added robust `try-catch` fallbacks to Iligan City center coordinates, successfully resolving critical `Location request failed due to unsatisfied device settings` crashes on emulators and spotty GPS devices.
