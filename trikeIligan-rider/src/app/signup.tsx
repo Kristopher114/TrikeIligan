@@ -54,13 +54,42 @@ export default function SignupScreen() {
             return;
         }
 
-        if (!username || !fullName || !phoneNumber) {
-            Alert.alert('Error', 'Please fill in all fields.');
+        if (!username || !fullName || !phoneNumber || !licenseImage) {
+            Alert.alert('Error', 'Please fill in all fields and upload your license photo.');
             return;
         }
 
         setIsSubmitting(true);
         try {
+            // 1. Upload Image to Cloudinary
+            const uploadData = new FormData();
+            uploadData.append('file', {
+                uri: licenseImage,
+                type: 'image/jpeg',
+                name: 'license.jpg'
+            });
+            uploadData.append('upload_preset', 'trike_driver_licenses');
+
+            const cloudRes = await fetch('https://api.cloudinary.com/v1_1/fcscskwg/image/upload', {
+                method: 'POST',
+                body: uploadData,
+                headers: {
+                    'Accept': 'application/json',
+                }
+            });
+
+            const cloudData = await cloudRes.json();
+
+            if (!cloudRes.ok) {
+                console.error("Cloudinary Error:", cloudData);
+                Alert.alert("Upload Failed", "Could not upload your license image.");
+                setIsSubmitting(false);
+                return;
+            }
+
+            const licensePhotoUrl = cloudData.secure_url;
+
+            // 2. Register Driver in Backend
             const response = await fetch('https://trikeiligan.onrender.com/api/driver-signup', {
                 method: 'POST',
                 headers: {
@@ -72,7 +101,8 @@ export default function SignupScreen() {
                     email,
                     phoneNumber,
                     password,
-                    vehicleType
+                    vehicleType,
+                    licensePhotoUrl
                 }),
             });
 

@@ -200,7 +200,7 @@ app.post('/api/login', async (req, res) => {
 
 // Driver Signup Endpoint
 app.post('/api/driver-signup', async (req, res) => {
-  const { fullName, email, phoneNumber, password, username, vehicleType } = req.body;
+  const { fullName, email, phoneNumber, password, username, vehicleType, licensePhotoUrl } = req.body;
 
   if (!fullName || !email || !phoneNumber || !password || !username) {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
@@ -238,11 +238,11 @@ app.post('/api/driver-signup', async (req, res) => {
     // Wait, let's just add username to Drivers table or check Users table directly.
     // Actually, `Drivers` doesn't have a username column. Let's just create the driver and log them in via email/phone in the driver login.
     const insertDriverQuery = `
-      INSERT INTO Drivers (user_id, vehicle_type)
-      VALUES ($1, $2);
+      INSERT INTO Drivers (user_id, vehicle_type, license_photo_url)
+      VALUES ($1, $2, $3);
     `;
     const vType = vehicleType === 'SINGLE' ? 'SINGLE' : 'TRICYCLE';
-    await client.query(insertDriverQuery, [userId, vType]);
+    await client.query(insertDriverQuery, [userId, vType, licensePhotoUrl || null]);
 
     await client.query('COMMIT');
     res.status(201).json({ status: 'success', message: 'Driver created successfully', userId });
