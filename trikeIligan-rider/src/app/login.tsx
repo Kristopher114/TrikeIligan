@@ -52,10 +52,11 @@ export default function LoginScreen() {
         if (data.user?.rating) {
           await AsyncStorage.setItem('driverRating', data.user.rating.toString());
         }
-        if (data.user?.approvalStatus === 'PENDING') {
+        const status = data.user?.approvalStatus;
+        if (status === 'PENDING' || !status) {
           router.replace('/pending');
-        } else if (data.user?.approvalStatus === 'REJECTED') {
-          Alert.alert('Application Rejected', `Your application was rejected: ${data.user.rejectionReason}`);
+        } else if (status === 'REJECTED') {
+          Alert.alert('Application Rejected', `Your application was rejected: ${data.user?.rejectionReason || 'No reason provided.'}`);
         } else {
           router.push('/home');
         }
