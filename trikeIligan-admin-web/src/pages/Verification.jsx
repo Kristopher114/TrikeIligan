@@ -4,7 +4,7 @@ import '../css/dashboard.css';
 export default function Verification() {
     const [pendingDrivers, setPendingDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedImage, setSelectedImage] = useState(null);
+    const [selectedImage, setSelectedImage] = useState(false);
 
     useEffect(() => {
         fetchPendingDrivers();
@@ -78,12 +78,7 @@ export default function Verification() {
                                     <td style={{ padding: '16px 8px' }}>{driver.vehicle_plate || 'N/A'}</td>
                                     <td style={{ padding: '16px 8px' }}>
                                         <button style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0', background: 'white', cursor: 'pointer' }}
-                                                onClick={() => {
-                                                    const imgUrl = driver.license_photo_url && driver.license_photo_url !== 'null' && driver.license_photo_url !== 'undefined' 
-                                                        ? driver.license_photo_url 
-                                                        : 'https://placehold.co/600x400/eeeeee/999999?text=No+License+Uploaded';
-                                                    setSelectedImage(imgUrl);
-                                                }}>
+                                                onClick={() => setSelectedImage(driver.license_photo_url || null)}>
                                             View License
                                         </button>
                                     </td>
@@ -106,8 +101,7 @@ export default function Verification() {
                 </div>
             )}
 
-            {/* Image Viewer Modal */}
-            {selectedImage && (
+            {selectedImage !== false && (
                 <div style={{
                     position: 'fixed',
                     top: 0, left: 0, width: '100vw', height: '100vh',
@@ -115,19 +109,25 @@ export default function Verification() {
                     display: 'flex', justifyContent: 'center', alignItems: 'center',
                     zIndex: 1000
                 }}>
-                    <div style={{ backgroundColor: 'white', padding: 24, borderRadius: 12, position: 'relative', maxWidth: '90%', maxHeight: '90%' }}>
+                    <div style={{ backgroundColor: 'white', padding: 24, borderRadius: 12, position: 'relative', maxWidth: '90%', maxHeight: '90%', textAlign: 'center' }}>
                         <button 
-                            onClick={() => setSelectedImage(null)}
+                            onClick={() => setSelectedImage(false)}
                             style={{ position: 'absolute', top: -12, right: -12, background: 'white', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
                         >
                             ✕
                         </button>
                         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Driver's License</h3>
-                        <img 
-                            src={selectedImage} 
-                            alt="Driver License" 
-                            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} 
-                        />
+                        {selectedImage && selectedImage !== 'null' && selectedImage !== 'undefined' ? (
+                            <img 
+                                src={selectedImage} 
+                                alt="Driver License" 
+                                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} 
+                            />
+                        ) : (
+                            <div style={{ padding: '40px', backgroundColor: '#F8FAFC', borderRadius: 8, color: '#64748B' }}>
+                                No license photo was uploaded for this driver.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
