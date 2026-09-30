@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, Alert, ActivityIndicator, Image } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_600SemiBold, Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 export default function SignupScreen() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +19,20 @@ export default function SignupScreen() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [licenseImage, setLicenseImage] = useState(null);
+
+    const pickImage = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            setLicenseImage(result.assets[0].uri);
+        }
+    };
 
     const handleSignUp = async () => {
         // Basic email regex pattern
@@ -196,17 +211,26 @@ export default function SignupScreen() {
                                 style={{
                                     borderWidth: 1, 
                                     borderColor: '#E2E8F0', 
-                                    borderStyle: 'dashed', 
+                                    borderStyle: licenseImage ? 'solid' : 'dashed', 
                                     borderRadius: 12, 
-                                    padding: 20, 
+                                    padding: licenseImage ? 0 : 20, 
                                     alignItems: 'center', 
                                     justifyContent: 'center',
-                                    backgroundColor: '#F8FAFC'
+                                    backgroundColor: '#F8FAFC',
+                                    overflow: 'hidden'
                                 }}
-                                onPress={() => alert('Image picker will open here in the future')}
+                                onPress={pickImage}
                             >
-                                <Ionicons name="camera-outline" size={24} color="#64748B" />
-                                <Text style={{ color: '#64748B', marginTop: 8, fontSize: 14 }}>Tap to upload license photo</Text>
+                                {licenseImage ? (
+                                    <View style={{ width: '100%', height: 200 }}>
+                                        <Image source={{ uri: licenseImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                    </View>
+                                ) : (
+                                    <>
+                                        <Ionicons name="camera-outline" size={24} color="#64748B" />
+                                        <Text style={{ color: '#64748B', marginTop: 8, fontSize: 14 }}>Tap to upload license photo</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         </View>
 
