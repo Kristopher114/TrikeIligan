@@ -52,7 +52,13 @@ export default function LoginScreen() {
         if (data.user?.rating) {
           await AsyncStorage.setItem('driverRating', data.user.rating.toString());
         }
-        router.push('/home');
+        if (data.user?.approvalStatus === 'PENDING') {
+          router.replace('/pending');
+        } else if (data.user?.approvalStatus === 'REJECTED') {
+          Alert.alert('Application Rejected', `Your application was rejected: ${data.user.rejectionReason}`);
+        } else {
+          router.push('/home');
+        }
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid username or password');
       }
@@ -85,7 +91,16 @@ export default function LoginScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/');
+              }
+            }}
+          >
             <Text style={styles.backIcon}>←</Text>
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>

@@ -78,7 +78,8 @@
 }
 
 .nav-item.active {
-  background-color: #145535; /* Darker green */
+  background-color: #145535;
+  /* Darker green */
   color: white;
 }
 
@@ -155,6 +156,15 @@
   color: #666666;
 }
 
+.search-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111111;
+  width: 200px;
+}
+
 .admin-profile {
   display: flex;
   align-items: center;
@@ -204,7 +214,8 @@
 }
 
 .stat-card {
-  background-color: #F1F8F5; /* Very light green tint */
+  background-color: #F1F8F5;
+  /* Very light green tint */
   border: 1px solid #C8E6C9;
   border-radius: 12px;
   padding: 24px;
@@ -246,7 +257,8 @@
   gap: 24px;
 }
 
-.map-card, .logs-card {
+.map-card,
+.logs-card {
   background-color: #FFFFFF;
   border: 1px dashed #E0E0E0;
   border-radius: 12px;
@@ -266,7 +278,8 @@
   gap: 8px;
 }
 
-.card-title h3, .card-header h3 {
+.card-title h3,
+.card-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 700;

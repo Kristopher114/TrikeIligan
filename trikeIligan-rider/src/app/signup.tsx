@@ -64,8 +64,13 @@ export default function SignupScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                Alert.alert('Success', 'Account created successfully!');
-                router.replace('/login');
+                Alert.alert(
+                    'Application Submitted', 
+                    'Your account has been created and your application is currently PENDING. Please wait for the admin to approve your account before you can start receiving rides.',
+                    [
+                        { text: 'OK', onPress: () => router.replace('/login') }
+                    ]
+                );
             } else {
                 Alert.alert('Signup Failed', data.message || 'An error occurred during signup.');
             }

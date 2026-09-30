@@ -11,11 +11,11 @@ export default function Monitoring() {
                     <h1 className="header-title">Live Iligan Dispatch View</h1>
                     <p className="header-subtitle">Real-time driver location and ride matching.</p>
                 </div>
-                
+
                 {/* Time / Search placeholder */}
                 <div className="header-actions">
                     <input type="text" placeholder="Search driver or ride ID..." className="search-input" />
-                    <div className="admin-profile-icon">A</div>
+                    <div className="admin-profile-icon"></div>
                 </div>
             </header>
 
@@ -68,7 +68,7 @@ export default function Monitoring() {
                                 </div>
                                 <div className="log-time">2m ago</div>
                             </div>
-                            
+
                             {/* Log Item 2 */}
                             <div className="log-item">
                                 <div className="log-icon status-progress"></div>

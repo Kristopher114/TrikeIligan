@@ -266,7 +266,7 @@ app.post('/api/driver-login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.vehicle_type, d.rating
+      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
       WHERE u.email = $1 OR u.phone_number = $1
@@ -284,18 +284,20 @@ app.post('/api/driver-login', async (req, res) => {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
     }
 
-    res.json({
-      status: 'success',
-      message: 'Login successful',
-      user: {
-        id: user.id,
-        fullName: user.full_name,
-        role: user.role,
-        vehicleModel: user.vehicle_model || 'Trike',
-        vehicleType: user.vehicle_type || 'TRICYCLE',
-        rating: user.rating || 5.0
-      }
-    });
+      res.json({
+        status: 'success',
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          fullName: user.full_name,
+          role: user.role,
+          vehicleModel: user.vehicle_model || 'Trike',
+          vehicleType: user.vehicle_type || 'TRICYCLE',
+          rating: user.rating || 5.0,
+          approvalStatus: user.approval_status,
+          rejectionReason: user.rejection_reason
+        }
+      });
   } catch (error) {
     console.error('Driver login error:', error);
     res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
