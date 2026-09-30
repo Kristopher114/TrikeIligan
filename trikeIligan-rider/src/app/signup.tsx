@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { FileSystemUploadType } from 'expo-file-system';
+import { UploadType } from 'expo-file-system';
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -70,7 +70,7 @@ export default function SignupScreen() {
                 licenseImage,
                 {
                     httpMethod: 'POST',
-                    uploadType: FileSystemUploadType.MULTIPART,
+                    uploadType: UploadType.MULTIPART,
                     fieldName: 'file',
                     parameters: {
                         upload_preset: 'trike_driver_licenses',
