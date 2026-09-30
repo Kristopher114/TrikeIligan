@@ -4,6 +4,7 @@ import '../css/dashboard.css';
 export default function Verification() {
     const [pendingDrivers, setPendingDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
         fetchPendingDrivers();
@@ -77,7 +78,7 @@ export default function Verification() {
                                     <td style={{ padding: '16px 8px' }}>{driver.vehicle_plate || 'N/A'}</td>
                                     <td style={{ padding: '16px 8px' }}>
                                         <button style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0', background: 'white', cursor: 'pointer' }}
-                                                onClick={() => alert(`Showing license image for ${driver.full_name}`)}>
+                                                onClick={() => setSelectedImage(driver.license_photo_url || 'https://via.placeholder.com/600x400?text=No+License+Uploaded')}>
                                             View License
                                         </button>
                                     </td>
@@ -97,6 +98,32 @@ export default function Verification() {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Image Viewer Modal */}
+            {selectedImage && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{ backgroundColor: 'white', padding: 24, borderRadius: 12, position: 'relative', maxWidth: '90%', maxHeight: '90%' }}>
+                        <button 
+                            onClick={() => setSelectedImage(null)}
+                            style={{ position: 'absolute', top: -12, right: -12, background: 'white', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
+                        >
+                            ✕
+                        </button>
+                        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Driver's License</h3>
+                        <img 
+                            src={selectedImage} 
+                            alt="Driver License" 
+                            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} 
+                        />
+                    </div>
                 </div>
             )}
         </div>
