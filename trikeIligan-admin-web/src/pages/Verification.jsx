@@ -78,7 +78,12 @@ export default function Verification() {
                                     <td style={{ padding: '16px 8px' }}>{driver.vehicle_plate || 'N/A'}</td>
                                     <td style={{ padding: '16px 8px' }}>
                                         <button style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0', background: 'white', cursor: 'pointer' }}
-                                                onClick={() => setSelectedImage(driver.license_photo_url || 'https://via.placeholder.com/600x400?text=No+License+Uploaded')}>
+                                                onClick={() => {
+                                                    const imgUrl = driver.license_photo_url && driver.license_photo_url !== 'null' && driver.license_photo_url !== 'undefined' 
+                                                        ? driver.license_photo_url 
+                                                        : 'https://placehold.co/600x400/eeeeee/999999?text=No+License+Uploaded';
+                                                    setSelectedImage(imgUrl);
+                                                }}>
                                             View License
                                         </button>
                                     </td>
