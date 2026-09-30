@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 export default function SignupScreen() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
@@ -61,26 +62,23 @@ export default function SignupScreen() {
 
         setIsSubmitting(true);
         try {
-            // 1. Upload Image to Cloudinary
-            const uploadData = new FormData();
-            uploadData.append('file', {
-                uri: licenseImage,
-                type: 'image/jpeg',
-                name: 'license.jpg'
-            });
-            uploadData.append('upload_preset', 'trike_driver_licenses');
-
-            const cloudRes = await fetch('https://api.cloudinary.com/v1_1/fcscskwg/image/upload', {
-                method: 'POST',
-                body: uploadData,
-                headers: {
-                    'Accept': 'application/json',
+            // 1. Upload Image to Cloudinary using FileSystem
+            const cloudRes = await FileSystem.uploadAsync(
+                'https://api.cloudinary.com/v1_1/fcscskwg/image/upload',
+                licenseImage,
+                {
+                    httpMethod: 'POST',
+                    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+                    fieldName: 'file',
+                    parameters: {
+                        upload_preset: 'trike_driver_licenses',
+                    },
                 }
-            });
+            );
 
-            const cloudData = await cloudRes.json();
+            const cloudData = JSON.parse(cloudRes.body);
 
-            if (!cloudRes.ok) {
+            if (cloudRes.status !== 200) {
                 console.error("Cloudinary Error:", cloudData);
                 Alert.alert("Upload Failed", "Could not upload your license image.");
                 setIsSubmitting(false);
