@@ -1,18 +1,16 @@
-# React + Vite
+# TrikeIligan Admin Web Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Overview
+This is the Vite-based React application serving as the administrative dashboard for the TrikeIligan platform. It provides centralized control and monitoring over the ecosystem of riders and drivers.
 
-Currently, two official plugins are available:
+## Recent Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-
-## We added a admin login and dashbaord
+### September 30, 2026 - Driver Verification Dashboard
+- **Verification Portal**:
+  - Engineered the main `Verification.jsx` dashboard allowing administrators to review and process all `PENDING` driver applications in real-time.
+- **Cloudinary Image Integration**:
+  - Built a seamless high-resolution image viewing modal. When admins click "View License", the portal securely fetches and displays the driver's license photo hosted on the Cloudinary CDN.
+  - Implemented smart UI fallbacks for legacy drivers, ensuring the dashboard remains clean (displaying "No license photo was uploaded") instead of rendering broken image links.
+- **One-Click Approval/Rejection**:
+  - Connected the Admin approval UI directly to the live backend.
+  - Clicking "Approve" instantly updates the PostgreSQL database to mark the driver as `APPROVED`, instantly unlocking their access to the mobile Driver App.

@@ -74,3 +74,13 @@
   - Developed a robust `POST /api/wallet/payout` backend endpoint utilizing the official PayPal `v1/payments/payouts` Sandbox API.
   - Added a dedicated `earnings.tsx` cashout screen for drivers to withdraw their digital earnings instantly to their personal PayPal account.
   - Secured the process using PostgreSQL `FOR UPDATE` row-level locking to prevent race conditions during withdrawals, logging every successful transfer into the `Transactions` table as a `WITHDRAWAL`.
+
+### September 30, 2026 - Driver Approval Flow & Cloudinary Uploads
+- **Driver Approval Security**:
+  - Restricted the driver app login flow. Drivers must now have an `APPROVED` status in the database to access the dashboard.
+  - Created a dedicated `pending.tsx` standby screen. If a driver signs up or attempts to log in before an Admin approves them, they are securely locked to this screen which states "Your application is still in approval".
+  - Added resilient fallback logic for legacy driver accounts that had missing or `null` statuses.
+- **License Photo Uploads via Cloudinary**:
+  - Integrated `expo-image-picker` allowing new drivers to select a photo of their driver's license during the registration flow.
+  - Engineered a robust, end-to-end direct image upload system using `expo-file-system/legacy` to bypass common React Native `FormData` crash bugs.
+  - Driver photos are securely streamed directly to a Cloudinary cloud storage bucket using unsigned presets, returning a live image URL that is stored natively in PostgreSQL.
