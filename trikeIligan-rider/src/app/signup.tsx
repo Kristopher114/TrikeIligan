@@ -70,7 +70,7 @@ export default function SignupScreen() {
                 licenseImage,
                 {
                     httpMethod: 'POST',
-                    uploadType: UploadType.MULTIPART,
+                    uploadType: 1 as any, // 1 is MULTIPART
                     fieldName: 'file',
                     parameters: {
                         upload_preset: 'trike_driver_licenses',
