@@ -1,8 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MdOutlineMap } from "react-icons/md";
+import { io } from 'socket.io-client';
 import '../css/dashboard.css';
 
 export default function Monitoring() {
+    const [liveStats, setLiveStats] = useState({
+        activeDrivers: 24, // Fallback/loading value
+        ongoingRides: 8,
+    });
+
+    useEffect(() => {
+        // Connect to backend
+        const socket = io('https://trikeiligan.onrender.com');
+
+        socket.on('connect', () => {
+            console.log('Connected to dispatch server for live monitoring');
+            socket.emit('admin_join'); // Tell server we are an admin
+        });
+
+        // Listen for live updates
+        socket.on('admin_stats_update', (stats) => {
+            console.log('Live stats received:', stats);
+            setLiveStats({
+                activeDrivers: stats.activeDrivers,
+                ongoingRides: stats.ongoingRides
+            });
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
     return (
         <>
             {/* Top Header */}
@@ -26,12 +55,12 @@ export default function Monitoring() {
                     <div className="stats-row">
                         <div className="stat-card">
                             <h3>Active Drivers</h3>
-                            <div className="stat-value">24</div>
-                            <div className="stat-trend positive">↑ 12% from yesterday</div>
+                            <div className="stat-value">{liveStats.activeDrivers}</div>
+                            <div className="stat-trend positive">Live Tracking Active</div>
                         </div>
                         <div className="stat-card">
                             <h3>Ongoing Rides</h3>
-                            <div className="stat-value">8</div>
+                            <div className="stat-value">{liveStats.ongoingRides}</div>
                             <div className="stat-trend neutral">Same as average</div>
                         </div>
                         <div className="stat-card">

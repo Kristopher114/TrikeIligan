@@ -694,6 +694,33 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
+  // Helper function to broadcast live stats to admin dashboard
+  const broadcastAdminStats = async () => {
+    try {
+      const activeDriversRoom = io.sockets.adapter.rooms.get('available_drivers');
+      const activeDriversCount = activeDriversRoom ? activeDriversRoom.size : 0;
+
+      const client = await pool.connect();
+      const ridesQuery = await client.query(
+        "SELECT COUNT(*) as ongoing_count FROM Rides WHERE status = 'IN_PROGRESS'"
+      );
+      client.release();
+
+      io.to('admin_room').emit('admin_stats_update', {
+        activeDrivers: activeDriversCount,
+        ongoingRides: parseInt(ridesQuery.rows[0].ongoing_count) || 0
+      });
+    } catch (e) {
+      console.error('Error broadcasting admin stats:', e);
+    }
+  };
+
+  // Admin Web joins
+  socket.on('admin_join', () => {
+    socket.join('admin_room');
+    broadcastAdminStats();
+  });
+
   // 1. Driver goes online
   socket.on('driver_online', (data) => {
     console.log(`Driver ${data.driverId} is online with vehicleType ${data.vehicleType || 'TRICYCLE'}`);
@@ -702,6 +729,7 @@ io.on('connection', (socket) => {
     if (data.vehicleType) {
       socket.join(`available_drivers_${data.vehicleType}`); // Specific room
     }
+    broadcastAdminStats();
   });
 
   // 2. Passenger requests a ride
@@ -803,6 +831,7 @@ io.on('connection', (socket) => {
       try {
         await client.query("UPDATE Rides SET status = 'IN_PROGRESS' WHERE id = $1", [data.rideId]);
       } catch(e) {} finally { client.release(); }
+      broadcastAdminStats();
     })();
   });
 
@@ -818,6 +847,7 @@ io.on('connection', (socket) => {
       try {
         await client.query("UPDATE Rides SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = $1", [data.rideId]);
       } catch(e) {} finally { client.release(); }
+      broadcastAdminStats();
     };
     updateRideDB();
     
@@ -868,6 +898,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
+    broadcastAdminStats();
   });
 });
 
