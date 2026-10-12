@@ -363,23 +363,42 @@ export default function RiderSelectionScreen() {
                         </View>
 
                         {/* Driver Profile */}
-                        <View style={styles.driverProfileRow}>
-                            <View style={styles.avatarPlaceholder}>
-                                <Ionicons name="person" size={24} color="#FFF" />
-                            </View>
-                            <View style={styles.driverInfo}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={styles.driverName}>{driverData.driverName || 'Driver'}</Text>
-                                    <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 4, marginRight: 2 }} />
-                                    <Text style={styles.ratingText}>{driverData.driverRating || '4.9'}</Text>
+                        {(() => {
+                            const driverAvatarUri = 
+                                (typeof driverData.driver === 'string' && driverData.driver.trim().length > 0 ? driverData.driver : null) ||
+                                (typeof driverData.driverPhoto === 'string' && driverData.driverPhoto.trim().length > 0 ? driverData.driverPhoto : null) ||
+                                (typeof driverData.driverImage === 'string' && driverData.driverImage.trim().length > 0 ? driverData.driverImage : null) ||
+                                (typeof driverData.profileImage === 'string' && driverData.profileImage.trim().length > 0 ? driverData.profileImage : null) ||
+                                (driverData.driver && typeof driverData.driver === 'object' ? (driverData.driver.photo || driverData.driver.profileImage || driverData.driver.image) : null);
+
+                            return (
+                                <View style={styles.driverProfileRow}>
+                                    {driverAvatarUri ? (
+                                        <Image
+                                            source={{ uri: driverAvatarUri }}
+                                            style={styles.avatarImage}
+                                            resizeMode="cover"
+                                        />
+                                    ) : (
+                                        <View style={styles.avatarPlaceholder}>
+                                            <Ionicons name="person" size={24} color="#FFF" />
+                                        </View>
+                                    )}
+                                    <View style={styles.driverInfo}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={styles.driverName}>{driverData.driverName || 'Driver'}</Text>
+                                            <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 4, marginRight: 2 }} />
+                                            <Text style={styles.ratingText}>{driverData.driverRating || '4.9'}</Text>
+                                        </View>
+                                        <Text style={styles.vehicleText}>{driverData.driverVehicle || 'Kawasaki Barako 175'}</Text>
+                                        <Text style={styles.etaSubtext}>{eta} mins away</Text>
+                                    </View>
+                                    <View style={styles.bestValueBadge}>
+                                        <Text style={styles.bestValueText}>BEST VALUE</Text>
+                                    </View>
                                 </View>
-                                <Text style={styles.vehicleText}>{driverData.driverVehicle || 'Trike'}</Text>
-                                <Text style={styles.etaSubtext}>{eta} mins away</Text>
-                            </View>
-                            <View style={styles.bestValueBadge}>
-                                <Text style={styles.bestValueText}>BEST VALUE</Text>
-                            </View>
-                        </View>
+                            );
+                        })()}
 
                     </View>
                 )}
@@ -650,6 +669,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+    },
+    avatarImage: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        marginRight: 12,
+        backgroundColor: '#E0E0E0',
     },
     driverInfo: {
         flex: 1,

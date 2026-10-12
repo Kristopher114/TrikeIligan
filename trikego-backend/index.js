@@ -878,15 +878,35 @@ io.on('connection', (socket) => {
   });
 
   // 3. Driver accepts ride
-  socket.on('driver_accept_ride', (data) => {
+  socket.on('driver_accept_ride', async (data) => {
     console.log(`Driver ${data.driverId} accepted ride from Passenger ${data.passengerId}`);
     
+    let driverPhoto = data.driverPhoto || data.driverImage || data.driver || null;
+    if (!driverPhoto && data.driverId) {
+      try {
+        const client = await pool.connect();
+        try {
+          const uRes = await client.query('SELECT profile_picture_url FROM Users WHERE id = $1', [data.driverId]);
+          if (uRes.rows.length > 0 && uRes.rows[0].profile_picture_url) {
+            driverPhoto = uRes.rows[0].profile_picture_url;
+          }
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        console.error('Failed to query driver photo:', err);
+      }
+    }
+
     // Notify the specific passenger that their ride was accepted
     io.emit(`ride_accepted_${data.passengerId}`, {
       driverId: data.driverId,
       driverName: data.driverName,
       driverVehicle: data.driverVehicle,
       driverRating: data.driverRating,
+      driverPhoto: driverPhoto,
+      driverImage: driverPhoto,
+      driver: driverPhoto,
       rideId: data.rideId
     });
     
