@@ -185,3 +185,23 @@ This document serves as a complete log of everything we accomplished during our 
 - **Authentication Flow**: Built a secure login screen fetching directly from the backend's `/api/admin-login` with custom role-based validation to ensure only `ADMIN` users can enter.
 - **Database Seeding**: Created a custom backend script (`seed-admin.js`) to safely inject the master admin user account directly into the PostgreSQL `Users` and `Admins` tables using bcrypt password hashing.
 - **System Dashboard**: Developed a pixel-perfect React dashboard layout utilizing `react-icons` to mirror the Figma design. Features real-time statistics cards, live dispatch map placeholders, and a dispatch log.
+
+### October 12, 2026 - Admin Hosting, Profile Management & Cloudinary Integration
+
+- **Admin Web Hosting Deployment**:
+  - Configured the React + Vite admin dashboard (`trikeIligan-admin-web`) for production hosting on Vercel and Render.
+  - Added `vercel.json` and `public/_redirects` SPA rewrite rules (`/* -> /index.html`) to guarantee client-side routes don't 404 upon browser reload.
+  - Verified production database connectivity to Neon PostgreSQL and live Render backend (`trikeiligan.onrender.com`).
+- **Passenger Profile Management & Edit Profile Screen**:
+  - Built a dedicated `edit-profile.tsx` screen enabling passengers to update their **Full Name**, **Username**, **Phone Number**, **Email Address**, and avatar photo.
+  - Linked the "Edit Profile" navigation from `profile.tsx` to `edit-profile.tsx`.
+  - Implemented `useFocusEffect` on the main profile screen to dynamically refresh and display newly updated profile info and avatar instantly upon navigation return.
+- **Cloudinary Avatar Upload Integration**:
+  - Installed `expo-image-picker` and `expo-file-system`.
+  - Integrated device photo gallery selection with interactive avatar preview and camera badge overlay.
+  - Configured photo streaming directly to Cloudinary with `trike_profile_pictures` preset support and an automatic fallback to `trike_driver_licenses` for fail-safe uploads.
+  - Migrated `FileSystem.uploadAsync` to `expo-file-system/legacy` to eliminate deprecation warnings and runtime errors on Expo SDK 54+.
+- **Database & Backend API Expansion**:
+  - Extended the PostgreSQL `Users` table schema by adding `profile_picture_url TEXT`.
+  - Built `GET /api/user-profile/:userId` and `PUT /api/user-profile/:userId` endpoints to handle profile data retrieval and permanent database synchronization.
+  - Upgraded `/api/login` and client-side `login.tsx` to automatically persist all profile fields (`user_username`, `user_email`, `user_phone`, `user_profile_image`) into `AsyncStorage` upon login.
