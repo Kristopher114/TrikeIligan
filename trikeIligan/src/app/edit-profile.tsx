@@ -1,13 +1,13 @@
-import { 
-    StyleSheet, 
-    Text, 
-    View, 
-    TextInput, 
-    TouchableOpacity, 
-    Alert, 
-    ActivityIndicator, 
-    Image, 
-    ScrollView 
+import {
+    StyleSheet,
+    Text,
+    View,
+    TextInput,
+    TouchableOpacity,
+    Alert,
+    ActivityIndicator,
+    Image,
+    ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -21,7 +21,7 @@ import * as FileSystem from 'expo-file-system';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/fcscskwg/image/upload';
-const CLOUDINARY_UPLOAD_PRESET = 'trike_driver_licenses';
+const CLOUDINARY_UPLOAD_PRESET = 'trike_profile_pictures';
 const API_BASE_URL = 'https://trikeiligan.onrender.com';
 
 export default function EditProfileScreen() {
@@ -292,9 +292,9 @@ export default function EditProfileScreen() {
 
                 {/* Save Button */}
                 <View style={styles.bottomContainer}>
-                    <TouchableOpacity 
-                        style={[styles.saveButton, isSaving && { opacity: 0.7 }]} 
-                        onPress={handleSave} 
+                    <TouchableOpacity
+                        style={[styles.saveButton, isSaving && { opacity: 0.7 }]}
+                        onPress={handleSave}
                         disabled={isSaving}
                     >
                         {isSaving ? (

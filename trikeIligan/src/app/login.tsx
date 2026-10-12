@@ -41,9 +41,22 @@ export default function LoginScreen() {
         // Save user data to AsyncStorage for persistence
         if (data.user?.fullName) {
           await AsyncStorage.setItem('userFullName', data.user.fullName);
+          await AsyncStorage.setItem('user_full_name', data.user.fullName);
         }
         if (data.user?.id) {
           await AsyncStorage.setItem('userId', data.user.id);
+        }
+        if (data.user?.username) {
+          await AsyncStorage.setItem('user_username', data.user.username);
+        }
+        if (data.user?.email) {
+          await AsyncStorage.setItem('user_email', data.user.email);
+        }
+        if (data.user?.phoneNumber) {
+          await AsyncStorage.setItem('user_phone', data.user.phoneNumber);
+        }
+        if (data.user?.profileImage) {
+          await AsyncStorage.setItem('user_profile_image', data.user.profileImage);
         }
         router.push('/home');
       } else {
