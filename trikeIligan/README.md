@@ -205,3 +205,9 @@ This document serves as a complete log of everything we accomplished during our 
   - Extended the PostgreSQL `Users` table schema by adding `profile_picture_url TEXT`.
   - Built `GET /api/user-profile/:userId` and `PUT /api/user-profile/:userId` endpoints to handle profile data retrieval and permanent database synchronization.
   - Upgraded `/api/login` and client-side `login.tsx` to automatically persist all profile fields (`user_username`, `user_email`, `user_phone`, `user_profile_image`) into `AsyncStorage` upon login.
+- **Driver Profile Photo in Rider Selection Card**:
+  - Enhanced the confirmed/accepted driver card in `rider-selection.tsx` to display the driver's verified profile picture using a rounded `Image` component instead of a static placeholder icon.
+  - Added multi-attribute resolution (`driverData.driver`, `driverPhoto`, `driverImage`, `profileImage`) with graceful fallback to `<View style={styles.avatarPlaceholder}>`.
+  - Integrated with the real-time `ride_accepted_<passengerId>` socket stream, backed by backend database lookups so the passenger app automatically receives the driver's photo upon ride acceptance.
+  - Corrected vehicle model presentation to accurately reflect the driver's motorcycle make/model (`Kawasaki Barako 175`).
+
