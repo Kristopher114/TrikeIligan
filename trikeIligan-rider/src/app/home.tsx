@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput, Linking, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Modal, TextInput, Linking, Platform, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -106,6 +106,7 @@ export default function RiderHome() {
     const [driverVehicle, setDriverVehicle] = useState<string>('');
     const [driverRating, setDriverRating] = useState('');
     const [vehicleType, setVehicleType] = useState('');
+    const [driverPhoto, setDriverPhoto] = useState<string>('');
 
     // Refs for socket callbacks to avoid stale state closures
     const rideStateRef = useRef(rideState);
@@ -119,42 +120,52 @@ export default function RiderHome() {
     useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
 
     // Load Driver Info
-    useEffect(() => {
-        const loadDriverInfo = async () => {
-            try {
-                const id = await AsyncStorage.getItem('userId');
-                const name = await AsyncStorage.getItem('userFullName');
-                const vehicle = await AsyncStorage.getItem('driverVehicle');
-                const vType = await AsyncStorage.getItem('driverVehicleType');
-                const rating = await AsyncStorage.getItem('driverRating');
+    const loadDriverInfo = async () => {
+        try {
+            const id = await AsyncStorage.getItem('userId');
+            const name = await AsyncStorage.getItem('userFullName') || await AsyncStorage.getItem('driverName');
+            const vehicle = await AsyncStorage.getItem('driverVehicle');
+            const vType = await AsyncStorage.getItem('driverVehicleType');
+            const rating = await AsyncStorage.getItem('driverRating');
+            const photo = await AsyncStorage.getItem('userProfileImage');
 
-                if (id) setDriverId(id);
-                if (name) setDriverName(name);
-                if (vehicle) setDriverVehicle(vehicle);
-                if (vType) setVehicleType(vType);
-                if (rating) setDriverRating(rating);
+            if (id) setDriverId(id);
+            if (name) setDriverName(name);
+            if (vehicle) setDriverVehicle(vehicle);
+            if (vType) setVehicleType(vType);
+            if (rating) setDriverRating(rating);
+            if (photo) setDriverPhoto(photo);
 
-                // Fetch real stats from backend
-                if (id) {
-                    try {
-                        const statsRes = await fetch(`https://trikeiligan.onrender.com/api/driver-stats/${id}`);
-                        if (statsRes.ok) {
-                            const statsJson = await statsRes.json();
-                            if (statsJson.status === 'success') {
-                                setTotalRides(statsJson.data.totalRides);
-                                setTodaysEarnings(statsJson.data.todayEarnings);
-                            }
+            // Fetch real stats from backend
+            if (id) {
+                try {
+                    const statsRes = await fetch(`https://trikeiligan.onrender.com/api/driver-stats/${id}`);
+                    if (statsRes.ok) {
+                        const statsJson = await statsRes.json();
+                        if (statsJson.status === 'success') {
+                            setTotalRides(statsJson.data.totalRides);
+                            setTodaysEarnings(statsJson.data.todayEarnings);
                         }
-                    } catch (err) {
-                        console.log("Failed to fetch driver stats", err);
                     }
+                } catch (err) {
+                    console.log("Failed to fetch driver stats", err);
                 }
-            } catch (e) {
-                console.error("Failed to load driver info", e);
             }
-        };
+        } catch (e) {
+            console.error("Failed to load driver info", e);
+        }
+    };
+
+    useEffect(() => {
         loadDriverInfo();
     }, []);
+
+    // Reload driver info when menu opens so any profile changes reflect immediately
+    useEffect(() => {
+        if (isMenuVisible) {
+            loadDriverInfo();
+        }
+    }, [isMenuVisible]);
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -258,9 +269,9 @@ export default function RiderHome() {
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const lat = loc.coords.latitude;
             const lng = loc.coords.longitude;
-            
+
             setCurrentLocation({ lat, lon: lng });
-            
+
             if (webviewRef.current) {
                 webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lng}); true;`);
             }
@@ -799,7 +810,11 @@ export default function RiderHome() {
                     <View style={styles.sideMenu}>
                         <View style={styles.menuHeader}>
                             <View style={styles.menuProfilePic}>
-                                <Ionicons name="person" size={32} color="#FFF" />
+                                {driverPhoto ? (
+                                    <Image source={{ uri: driverPhoto }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                                ) : (
+                                    <Ionicons name="person" size={32} color="#FFF" />
+                                )}
                             </View>
                             <Text style={styles.menuDriverName}>{driverName}</Text>
                             <Text style={styles.menuDriverSubtitle}>
@@ -824,9 +839,14 @@ export default function RiderHome() {
                                 <Text style={styles.menuItemText}>Earnings</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.menuItem}>
-                                <Ionicons name="settings-outline" size={24} color="#444" style={styles.menuItemIcon} />
-                                <Text style={styles.menuItemText}>Settings</Text>
+                            <TouchableOpacity style={styles.menuItem}
+                                onPress={() => {
+                                    setIsMenuVisible(false);
+                                    router.push('/profile');
+                                }}
+                            >
+                                <Ionicons name="person-outline" size={24} color="#444" style={styles.menuItemIcon} />
+                                <Text style={styles.menuItemText}>Profile</Text>
                             </TouchableOpacity>
                         </View>
 

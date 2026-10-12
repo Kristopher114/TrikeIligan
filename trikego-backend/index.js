@@ -379,9 +379,12 @@ app.get('/api/user-profile/:userId', async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query(`
-      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, p.username
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, u.role,
+             p.username,
+             d.vehicle_model, d.vehicle_plate, d.license_number, d.vehicle_type, d.rating, d.approval_status
       FROM Users u
       LEFT JOIN Passengers p ON u.id = p.user_id
+      LEFT JOIN Drivers d ON u.id = d.user_id
       WHERE u.id = $1
     `, [userId]);
 
@@ -397,7 +400,14 @@ app.get('/api/user-profile/:userId', async (req, res) => {
         email: user.email,
         phoneNumber: user.phone_number,
         profileImage: user.profile_picture_url,
-        username: user.username
+        role: user.role,
+        username: user.username,
+        vehicleModel: user.vehicle_model,
+        vehiclePlate: user.vehicle_plate,
+        licenseNumber: user.license_number,
+        vehicleType: user.vehicle_type,
+        rating: user.rating,
+        approvalStatus: user.approval_status
       }
     });
   } catch (error) {
@@ -411,7 +421,7 @@ app.get('/api/user-profile/:userId', async (req, res) => {
 // PUT Update User Profile
 app.put('/api/user-profile/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { fullName, phoneNumber, email, profileImage, username } = req.body;
+  const { fullName, phoneNumber, email, profileImage, username, vehicleModel, vehiclePlate } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -424,7 +434,7 @@ app.put('/api/user-profile/:userId', async (req, res) => {
           email = COALESCE($3, email),
           profile_picture_url = COALESCE($4, profile_picture_url)
       WHERE id = $5
-      RETURNING id, full_name, email, phone_number, profile_picture_url;
+      RETURNING id, full_name, email, phone_number, profile_picture_url, role;
     `;
     const userRes = await client.query(updateUserQuery, [
       fullName || null,
@@ -448,6 +458,16 @@ app.put('/api/user-profile/:userId', async (req, res) => {
       `, [username, userId]);
     }
 
+    // Update Drivers table if vehicle info provided
+    if (vehicleModel !== undefined || vehiclePlate !== undefined) {
+      await client.query(`
+        UPDATE Drivers
+        SET vehicle_model = COALESCE($1, vehicle_model),
+            vehicle_plate = COALESCE($2, vehicle_plate)
+        WHERE user_id = $3
+      `, [vehicleModel || null, vehiclePlate || null, userId]);
+    }
+
     await client.query('COMMIT');
     const updated = userRes.rows[0];
     res.json({
@@ -459,7 +479,9 @@ app.put('/api/user-profile/:userId', async (req, res) => {
         email: updated.email,
         phoneNumber: updated.phone_number,
         profileImage: updated.profile_picture_url,
-        username: username || undefined
+        username: username || undefined,
+        vehicleModel: vehicleModel || undefined,
+        vehiclePlate: vehiclePlate || undefined
       }
     });
   } catch (error) {
