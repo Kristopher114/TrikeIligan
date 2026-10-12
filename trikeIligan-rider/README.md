@@ -32,6 +32,7 @@
 - The sidebar now houses the Driver's Profile Header, "Ride History", "Earnings", "Settings", and a dedicated "Logout" button.
 
 ### 6. Real-Time Socket.IO Integration (Driver App)
+
 - **Socket.IO Client Setup**:
   - Installed `socket.io-client@4.7.2` to ensure stable websocket connections through Expo's Metro bundler.
   - Established persistent, real-time connections to the live Render backend (`trikeiligan.onrender.com`).
@@ -44,12 +45,14 @@
   - Implemented a 15-second visual countdown timer and a sleek "New Ride Request" bottom sheet that auto-dismisses if a ride isn't accepted in time.
 
 ### September 18-19, 2026 - Vehicle Classification & Ride Filtering
+
 - **Vehicle Type Implementation**:
   - Upgraded the database schema to classify every driver with a specific `vehicle_type` ('SINGLE' or 'TRICYCLE').
-  - Modified the backend Socket.IO dispatch logic (`passenger_request_ride`) to automatically filter available drivers. 
+  - Modified the backend Socket.IO dispatch logic (`passenger_request_ride`) to automatically filter available drivers.
   - Drivers will now *only* receive a `new_ride_request` popup if their registered vehicle type perfectly matches the passenger's requested vehicle type.
 
 ### September 22, 2026 - Ride Lifecycle & Cancellation Handling
+
 - **Ride Arrival & Handshake**:
   - Implemented real-time status syncing. Tapping `"PASSENGER PICKED UP"` now updates the passenger's app UI to show they are actively in-transit.
   - Tapping `"CONFIRM PAYMENT & RATE"` emits a `ride_completed` signal, gracefully ending the driver's active ride session and prompting the passenger to rate the driver.
@@ -59,7 +62,9 @@
   - **Active phase**: If the passenger cancels *after* the driver has accepted (while driving to pickup or during the ride), the app receives a `ride_cancelled_by_passenger_<driverId>` event.
   - Solved a complex React `useEffect` lifecycle bug to guarantee the cancellation listeners correctly bind *after* the network socket connects.
   - The driver app now instantly wipes the active ride screen and alerts the driver via a `"Ride Cancelled"` modal, immediately returning them to the idle pool to receive new requests.
+  
 ### September 28, 2026 - Digital Wallet & Driver Cashout System
+
 - **Ride History (Passenger & Driver)**:
   - Passengers can view a detailed log of their past rides, including pickup/dropoff locations, fares, and the specific payment method (CASH or WALLET).
   - Built a new `GET /api/driver-rides/:driverId` endpoint and a dedicated `rides.tsx` history screen for drivers, allowing them to track the passengers they have serviced.
@@ -76,6 +81,7 @@
   - Secured the process using PostgreSQL `FOR UPDATE` row-level locking to prevent race conditions during withdrawals, logging every successful transfer into the `Transactions` table as a `WITHDRAWAL`.
 
 ### September 30, 2026 - Driver Approval Flow & Cloudinary Uploads
+
 - **Driver Approval Security**:
   - Restricted the driver app login flow. Drivers must now have an `APPROVED` status in the database to access the dashboard.
   - Created a dedicated `pending.tsx` standby screen. If a driver signs up or attempts to log in before an Admin approves them, they are securely locked to this screen which states "Your application is still in approval".
@@ -86,6 +92,7 @@
   - Driver photos are securely streamed directly to a Cloudinary cloud storage bucket using unsigned presets, returning a live image URL that is stored natively in PostgreSQL.
 
 ### September 30, 2026 - Driver App Polish & Map Overhaul
+
 - **Dynamic Fare Configuration**:
   - Implemented a live query to fetch the `base_fare` directly from the PostgreSQL `System_Config` table.
   - Re-designed the 3-column driver dashboard to cleanly display the dynamic base fare directly, preventing visual overflow and text wrapping issues on smaller screens.
