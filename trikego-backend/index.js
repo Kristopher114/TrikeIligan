@@ -162,7 +162,7 @@ app.post('/api/login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.password_hash, u.role, p.username 
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, u.password_hash, u.role, p.username 
       FROM Users u 
       JOIN Passengers p ON u.id = p.user_id 
       WHERE p.username = $1
@@ -187,6 +187,9 @@ app.post('/api/login', async (req, res) => {
         id: user.id,
         username: user.username,
         fullName: user.full_name,
+        email: user.email,
+        phoneNumber: user.phone_number,
+        profileImage: user.profile_picture_url,
         role: user.role
       }
     });
@@ -365,6 +368,104 @@ app.get('/api/wallet/balance/:userId', async (req, res) => {
   } catch (error) {
     console.error('Fetch balance error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch balance' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET User Profile
+app.get('/api/user-profile/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, p.username
+      FROM Users u
+      LEFT JOIN Passengers p ON u.id = p.user_id
+      WHERE u.id = $1
+    `, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+    const user = result.rows[0];
+    res.json({
+      status: 'success',
+      user: {
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        phoneNumber: user.phone_number,
+        profileImage: user.profile_picture_url,
+        username: user.username
+      }
+    });
+  } catch (error) {
+    console.error('Fetch profile error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch user profile' });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT Update User Profile
+app.put('/api/user-profile/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { fullName, phoneNumber, email, profileImage, username } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Update Users table
+    const updateUserQuery = `
+      UPDATE Users
+      SET full_name = COALESCE($1, full_name),
+          phone_number = COALESCE($2, phone_number),
+          email = COALESCE($3, email),
+          profile_picture_url = COALESCE($4, profile_picture_url)
+      WHERE id = $5
+      RETURNING id, full_name, email, phone_number, profile_picture_url;
+    `;
+    const userRes = await client.query(updateUserQuery, [
+      fullName || null,
+      phoneNumber || null,
+      email || null,
+      profileImage || null,
+      userId
+    ]);
+
+    if (userRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    // Update Passengers table username if provided
+    if (username) {
+      await client.query(`
+        UPDATE Passengers
+        SET username = $1
+        WHERE user_id = $2
+      `, [username, userId]);
+    }
+
+    await client.query('COMMIT');
+    const updated = userRes.rows[0];
+    res.json({
+      status: 'success',
+      message: 'Profile updated successfully',
+      user: {
+        id: updated.id,
+        fullName: updated.full_name,
+        email: updated.email,
+        phoneNumber: updated.phone_number,
+        profileImage: updated.profile_picture_url,
+        username: username || undefined
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update profile error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to update profile' });
   } finally {
     client.release();
   }

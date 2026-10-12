@@ -1,28 +1,34 @@
-import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_700Bold, Outfit_500Medium, Outfit_400Regular, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import TabBar from '../components/TabBar';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
     const router = useRouter();
+    const [profileImage, setProfileImage] = useState('');
     const [fullName, setFullName] = useState('');
 
-    useEffect(() => {
-        const loadName = async () => {
-            try {
-                const name = await AsyncStorage.getItem('userFullName');
-                if (name) setFullName(name);
-            } catch (e) {
-                console.error("Failed to load name", e);
-            }
-        };
-        loadName();
-    }, []);
+    const loadProfile = async () => {
+        try {
+            const name = await AsyncStorage.getItem('user_full_name') || await AsyncStorage.getItem('userFullName');
+            const img = await AsyncStorage.getItem('user_profile_image');
+            if (name) setFullName(name);
+            if (img) setProfileImage(img);
+        } catch (e) {
+            console.error("Failed to load profile", e);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            loadProfile();
+        }, [])
+    );
 
     const handleLogout = () => {
         Alert.alert(
@@ -58,7 +64,7 @@ export default function ProfileScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar style="dark" backgroundColor="#FFFFFF" />
+            <StatusBar style="dark" />
             <View style={styles.container}>
 
                 {/* Header */}
@@ -69,7 +75,11 @@ export default function ProfileScreen() {
                 {/* Profile Info */}
                 <View style={styles.profileSection}>
                     <View style={styles.avatarContainer}>
-                        <Ionicons name="person" size={60} color="#1B6E45" />
+                        {profileImage ? (
+                            <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+                        ) : (
+                            <Ionicons name="person" size={60} color="#1B6E45" />
+                        )}
                     </View>
                     <Text style={styles.userName}>{fullName || 'Guest'}</Text>
                     <Text style={styles.userRole}>Passenger</Text>
@@ -77,9 +87,9 @@ export default function ProfileScreen() {
 
                 {/* Menu List */}
                 <View style={styles.menuContainer}>
-                    <TouchableOpacity style={styles.menuItem}>
-                        <Ionicons name="time-outline" size={24} color="#555" />
-                        <Text style={styles.menuText}>Ride History</Text>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/edit-profile')}>
+                        <Ionicons name="person-outline" size={24} color="#555" />
+                        <Text style={styles.menuText}>Edit Profile</Text>
                         <Ionicons name="chevron-forward" size={24} color="#CCC" />
                     </TouchableOpacity>
 
@@ -145,6 +155,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+    },
+    avatarImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
     },
     userName: {
         fontFamily: 'Outfit_700Bold',

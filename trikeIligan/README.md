@@ -88,6 +88,7 @@ This document serves as a complete log of everything we accomplished during our 
   - *Vital Command Run*: `npx expo run:android` to fire up the Android Gradle Daemon and completely rebuild the underlying native `.apk` from scratch, properly linking the Java native code required for persistent device storage.
 
 ### Update: August 23, 2026 - Cloud Deployment (Render) & Network Fixes
+
 - **Backend Cloud Deployment Preparation**:
   - Prepared the `trikego-backend` Express server for production deployment on **Render Web Services**.
   - Updated `package.json` with a dedicated `"start": "node index.js"` script to instruct Render on how to boot the server.
@@ -101,6 +102,7 @@ This document serves as a complete log of everything we accomplished during our 
   - Resolved recurrent 60-second fetch timeouts (`java.net.ConnectException`) caused by dynamic IP address changes on the local Windows network. Successfully remapped the frontend API calls in `signup.tsx` and `login.tsx` back to the stable Mobile Hotspot IP address (`192.168.137.1`).
 
 ### September 3, 2026
+
 - **Ride History Feature**:
   - Implemented a new `/api/rides/:userId` backend endpoint in `index.js` that queries the PostgreSQL `Rides` table and joins with the `Users` table to fetch driver details.
   - Modified `login.tsx` to capture and persist the `userId` securely in `AsyncStorage` upon successful authentication.
@@ -116,17 +118,19 @@ This document serves as a complete log of everything we accomplished during our 
   - Diagnosed `cron-job.org` 503 HTTP errors, determining them to be temporary deployment downtime rather than crashes, and confirmed a 100% healthy active server connection via PowerShell REST tests.
 
 ### September 5, 2026 - Real-Time Socket.IO Integration (Passenger App)
-- **Socket.IO Client Setup**: 
+
+- **Socket.IO Client Setup**:
   - Installed `socket.io-client@4.7.2` (downgraded specifically to bypass a known Metro bundler `webtransport` resolution error on Expo).
   - Wired the Passenger App (`rider-selection.tsx`) to connect securely to the live Render backend via websockets.
-- **Dynamic Booking & Fare System**: 
+- **Dynamic Booking & Fare System**:
   - Successfully connected the passenger's "Confirm Booking" flow to emit the `passenger_request_ride` event to the driver pool.
   - Replaced the hardcoded driver profile with real-time dynamic data directly from the driver accepting the ride.
   - Implemented the "Finding a Driver..." radar UI, which listens for the `ride_accepted_<userId>` event from the backend.
   - Automatically parses the incoming driver's `driverName`, `driverVehicle`, and `driverRating` straight from the PostgreSQL database through the Socket and displays it on the "Ride Confirmed" screen.
 
 ### September 18-19, 2026 - Wallet Top-Up System & PayPal Integration
-- **Wallet Architecture**: 
+
+- **Wallet Architecture**:
   - Designed the `wallet_balance` field in the PostgreSQL `Users` table and built a dedicated `Transactions` table to track top-ups.
   - Implemented `/api/wallet/balance/:userId` on the backend to dynamically fetch the user's available funds.
 - **Payment Gateway Migration (PayMongo -> PayPal)**:
@@ -144,6 +148,7 @@ This document serves as a complete log of everything we accomplished during our 
   - Fixed a severe `SyntaxError: JSON Parse error: Unexpected character: N` crash in the Passenger app caused by incorrect API fetch URLs pointing to a non-existent domain (`trikego-backend.onrender.com`). Corrected all endpoints to the live `trikeiligan.onrender.com` server.
 
 ### September 22, 2026 - Ride Lifecycle & Cancellation Flow
+
 - **Post-Ride Rating System**:
   - Engineered a seamless real-time handoff at the end of a ride. When the driver taps `"CONFIRM PAYMENT & RATE"`, it triggers a `ride_completed_<userId>` socket event.
   - The Passenger App listens for this event, automatically dismisses the active ride screen, and instantly displays a rating modal for the passenger to rate the driver.
@@ -156,7 +161,9 @@ This document serves as a complete log of everything we accomplished during our 
   - **Pre-Acceptance Cancellation**: If a passenger cancels while the app is still searching, it emits a `cancel_ride_offer` event with the specific `rideId`. The backend broadcasts this to all available drivers, instantly dismissing the ringing `"NEW RIDE REQUEST"` modal.
   - **Post-Acceptance Cancellation**: If the passenger cancels after a driver has already accepted, it sends a targeted `ride_cancelled_by_passenger_<driverId>` signal.
   - The driver app now instantly wipes active ride data, resets the UI back to the idle map, and alerts the driver with a `"Ride Cancelled"` modal across all stages of the trip.
+
 ### September 28, 2026 - Digital Wallet & Driver Cashout System
+
 - **Ride History (Passenger & Driver)**:
   - Passengers can view a detailed log of their past rides, including pickup/dropoff locations, fares, and the specific payment method (CASH or WALLET).
   - Built a new `GET /api/driver-rides/:driverId` endpoint and a dedicated `rides.tsx` history screen for drivers, allowing them to track the passengers they have serviced.
@@ -171,9 +178,10 @@ This document serves as a complete log of everything we accomplished during our 
   - Developed a robust `POST /api/wallet/payout` backend endpoint utilizing the official PayPal `v1/payments/payouts` Sandbox API.
   - Added a dedicated `earnings.tsx` cashout screen for drivers to withdraw their digital earnings instantly to their personal PayPal account.
   - Secured the process using PostgreSQL `FOR UPDATE` row-level locking to prevent race conditions during withdrawals, logging every successful transfer into the `Transactions` table as a `WITHDRAWAL`.
-# # #   S e p t e m b e r   2 9 ,   2 0 2 6   -   A d m i n   W e b   A p p l i c a t i o n   ( R e a c t   +   V i t e )  
- -   * * P r o j e c t   C r e a t i o n * * :   I n i t i a l i z e d   a   n e w   V i t e   +   R e a c t   w e b   a p p l i c a t i o n   ( \ 	 r i k e I l i g a n - a d m i n - w e b \ )   t a i l o r e d   s p e c i f i c a l l y   f o r   p l a t f o r m   a d m i n i s t r a t o r s .  
- -   * * A u t h e n t i c a t i o n   F l o w * * :   B u i l t   a   s e c u r e   l o g i n   s c r e e n   f e t c h i n g   d i r e c t l y   f r o m   t h e   b a c k e n d ' s   \ / a p i / a u t h / l o g i n \   w i t h   c u s t o m   r o l e - b a s e d   v a l i d a t i o n   t o   e n s u r e   o n l y   \ A D M I N \   u s e r s   c a n   e n t e r .  
- -   * * D a t a b a s e   S e e d i n g * * :   C r e a t e d   a   c u s t o m   b a c k e n d   s c r i p t   ( \ s e e d - a d m i n . j s \ )   t o   s a f e l y   i n j e c t   t h e   m a s t e r   a d m i n   u s e r   a c c o u n t   d i r e c t l y   i n t o   t h e   P o s t g r e S Q L   \ U s e r s \   a n d   \ A d m i n s \   t a b l e s   u s i n g   b c r y p t   p a s s w o r d   h a s h i n g .  
- -   * * S y s t e m   D a s h b o a r d * * :   D e v e l o p e d   a   p i x e l - p e r f e c t   R e a c t   d a s h b o a r d   l a y o u t   u t i l i z i n g   \  e a c t - i c o n s \   t o   m i r r o r   t h e   F i g m a   d e s i g n .   F e a t u r e s   r e a l - t i m e   s t a t i s t i c s   c a r d s ,   l i v e   d i s p a t c h   m a p   p l a c e h o l d e r s ,   a n d   a   d i s p a t c h   l o g .  
- 
+
+### September 29, 2026 - Admin Web Application (React + Vite)
+
+- **Project Creation**: Initialized a new Vite + React web application (`trikeIligan-admin-web`) tailored specifically for platform administrators.
+- **Authentication Flow**: Built a secure login screen fetching directly from the backend's `/api/admin-login` with custom role-based validation to ensure only `ADMIN` users can enter.
+- **Database Seeding**: Created a custom backend script (`seed-admin.js`) to safely inject the master admin user account directly into the PostgreSQL `Users` and `Admins` tables using bcrypt password hashing.
+- **System Dashboard**: Developed a pixel-perfect React dashboard layout utilizing `react-icons` to mirror the Figma design. Features real-time statistics cards, live dispatch map placeholders, and a dispatch log.
