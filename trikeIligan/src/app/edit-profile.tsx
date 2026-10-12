@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/fcscskwg/image/upload';
@@ -114,7 +114,7 @@ export default function EditProfileScreen() {
 
             // 1. Upload to Cloudinary if user selected a new local image
             if (selectedLocalImage) {
-                const cloudRes = await FileSystem.uploadAsync(
+                let cloudRes = await FileSystem.uploadAsync(
                     CLOUDINARY_UPLOAD_URL,
                     selectedLocalImage,
                     {
@@ -127,11 +127,29 @@ export default function EditProfileScreen() {
                     }
                 );
 
-                const cloudData = JSON.parse(cloudRes.body);
+                let cloudData = JSON.parse(cloudRes.body);
+
+                // If new preset does not exist yet in Cloudinary, fall back to existing working preset
+                if (cloudRes.status !== 200 && CLOUDINARY_UPLOAD_PRESET !== 'trike_driver_licenses') {
+                    console.warn(`Preset ${CLOUDINARY_UPLOAD_PRESET} failed, trying trike_driver_licenses fallback...`);
+                    cloudRes = await FileSystem.uploadAsync(
+                        CLOUDINARY_UPLOAD_URL,
+                        selectedLocalImage,
+                        {
+                            httpMethod: 'POST',
+                            uploadType: 1 as any,
+                            fieldName: 'file',
+                            parameters: {
+                                upload_preset: 'trike_driver_licenses',
+                            },
+                        }
+                    );
+                    cloudData = JSON.parse(cloudRes.body);
+                }
 
                 if (cloudRes.status !== 200 || !cloudData.secure_url) {
                     console.error("Cloudinary upload failed:", cloudData);
-                    Alert.alert("Upload Error", "Failed to upload profile photo to Cloudinary. Please try again.");
+                    Alert.alert("Upload Error", cloudData.error?.message || "Failed to upload profile photo to Cloudinary. Please try again.");
                     setIsSaving(false);
                     return;
                 }
