@@ -99,3 +99,25 @@
 - **Location Reliability Improvements**:
   - Engineered a `handleRefreshLocation` manual toggle button directly onto the map screen.
   - Decreased default location accuracy requests to `Balanced` and added robust `try-catch` fallbacks to Iligan City center coordinates, successfully resolving critical `Location request failed due to unsatisfied device settings` crashes on emulators and spotty GPS devices.
+
+### October 12, 2026 - Driver Profile Management, Vehicle Model Normalization & Live Photo Broadcast
+
+- **Driver Edit Profile Screen (`profile.tsx`)**:
+  - Re-engineered the driver profile into an interactive profile editing screen matching the design aesthetics of the passenger app.
+  - Drivers can view and update their personal details (**Full Name**, **Phone Number**, **Email Address**, **Vehicle Model**, and **Vehicle Plate Number**).
+  - Prominently displays verified driver badges: **Approval Status** (`APPROVED`, `PENDING`, `REJECTED`), driver **Rating**, **Vehicle Type** (`Tricycle` / `Single`), and read-only **License Number**.
+  - Connected directly to `GET /api/user-profile/:id` and `PUT /api/user-profile/:id` to synchronize changes with PostgreSQL `Users` and `Drivers` tables while refreshing device `AsyncStorage`.
+- **Cloudinary Avatar Uploads for Drivers**:
+  - Integrated `expo-image-picker` with an interactive camera badge overlay, enabling drivers to change their profile picture directly from the app.
+  - Streams selected photos directly to Cloudinary using `expo-file-system/legacy` to guarantee stability and prevent upload deprecation issues.
+  - Automatically updates the user's `profile_picture_url` in the database and updates `userProfileImage` in local cache.
+- **Vehicle Model Normalization ("Kawasaki Barako 175" vs "Trike")**:
+  - Identified and fixed a bug where the vehicle model defaulted to `"Trike"` instead of the actual motorcycle model (`Kawasaki Barako 175`).
+  - Removed the hardcoded `user.vehicle_model || 'Trike'` fallback in backend `/api/driver-login`, updating it to resolve to the true model or `'Kawasaki Barako 175'`.
+  - Updated driver database records in Neon PostgreSQL, ensuring `vehicle_model` contains `'Kawasaki Barako 175'`.
+  - Upgraded `/api/driver-signup` to automatically set default vehicle models upon driver registration.
+  - Implemented client-side sanitization across `profile.tsx`, `login.tsx`, and `home.tsx` to automatically purge stale `"Trike"` values from `driverVehicle` storage.
+- **Real-Time Driver Photo Broadcast on Ride Acceptance (`home.tsx`)**:
+  - Updated the `driver_accept_ride` socket dispatch in `home.tsx` to include the driver's verified profile picture (`driverPhoto`, `driverImage`, `driver`).
+  - Enables the passenger's confirmed rider selection card to render the assigned driver's real image in real time.
+
