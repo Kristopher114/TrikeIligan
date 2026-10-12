@@ -61,7 +61,12 @@ export default function DriverProfileScreen() {
                 if (savedEmail) setEmail(savedEmail);
                 if (savedPhone) setPhoneNumber(savedPhone);
                 if (savedImage) setProfileImage(savedImage);
-                if (savedVehicle) setVehicleModel(savedVehicle);
+                if (savedVehicle) {
+                    const initialModel = savedVehicle === 'Trike' ? 'Kawasaki Barako 175' : savedVehicle;
+                    setVehicleModel(initialModel);
+                } else {
+                    setVehicleModel('Kawasaki Barako 175');
+                }
                 if (savedVehicleType) setVehicleType(savedVehicleType);
                 if (savedRating) setRating(savedRating);
                 if (savedPlate) setVehiclePlate(savedPlate);
@@ -73,15 +78,42 @@ export default function DriverProfileScreen() {
                         const data = await res.json();
                         if (data.status === 'success' && data.user) {
                             const u = data.user;
-                            if (u.fullName) setFullName(u.fullName);
-                            if (u.email) setEmail(u.email);
-                            if (u.phoneNumber) setPhoneNumber(u.phoneNumber);
-                            if (u.vehicleModel) setVehicleModel(u.vehicleModel);
-                            if (u.vehiclePlate) setVehiclePlate(u.vehiclePlate);
+                            if (u.fullName) {
+                                setFullName(u.fullName);
+                                await AsyncStorage.setItem('driverName', u.fullName);
+                            }
+                            if (u.email) {
+                                setEmail(u.email);
+                                await AsyncStorage.setItem('userEmail', u.email);
+                            }
+                            if (u.phoneNumber) {
+                                setPhoneNumber(u.phoneNumber);
+                                await AsyncStorage.setItem('userPhone', u.phoneNumber);
+                            }
+                            if (u.vehicleModel) {
+                                const cleanModel = u.vehicleModel === 'Trike' ? 'Kawasaki Barako 175' : u.vehicleModel;
+                                setVehicleModel(cleanModel);
+                                await AsyncStorage.setItem('driverVehicle', cleanModel);
+                            } else {
+                                const defaultModel = (u.vehicleType === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175');
+                                setVehicleModel(defaultModel);
+                                await AsyncStorage.setItem('driverVehicle', defaultModel);
+                            }
+                            if (u.vehiclePlate) {
+                                setVehiclePlate(u.vehiclePlate);
+                                await AsyncStorage.setItem('driverVehiclePlate', u.vehiclePlate);
+                            }
                             if (u.licenseNumber) setLicenseNumber(u.licenseNumber);
-                            if (u.vehicleType) setVehicleType(u.vehicleType);
+                            if (u.vehicleType) {
+                                setVehicleType(u.vehicleType);
+                                await AsyncStorage.setItem('driverVehicleType', u.vehicleType);
+                            }
                             if (u.approvalStatus) setApprovalStatus(u.approvalStatus);
-                            if (u.rating) setRating(parseFloat(u.rating).toFixed(2));
+                            if (u.rating) {
+                                const formattedRating = parseFloat(u.rating).toFixed(2);
+                                setRating(formattedRating);
+                                await AsyncStorage.setItem('driverRating', formattedRating);
+                            }
                             if (u.profileImage) {
                                 setProfileImage(u.profileImage);
                                 await AsyncStorage.setItem('userProfileImage', u.profileImage);

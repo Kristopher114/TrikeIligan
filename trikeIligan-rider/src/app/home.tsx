@@ -131,7 +131,7 @@ export default function RiderHome() {
 
             if (id) setDriverId(id);
             if (name) setDriverName(name);
-            if (vehicle) setDriverVehicle(vehicle);
+            if (vehicle) setDriverVehicle(vehicle === 'Trike' ? 'Kawasaki Barako 175' : vehicle);
             if (vType) setVehicleType(vType);
             if (rating) setDriverRating(rating);
             if (photo) setDriverPhoto(photo);

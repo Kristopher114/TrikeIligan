@@ -44,7 +44,8 @@ export default function LoginScreen() {
           await AsyncStorage.setItem('userId', data.user.id);
         }
         if (data.user?.vehicleModel) {
-          await AsyncStorage.setItem('driverVehicle', data.user.vehicleModel);
+          const cleanModel = data.user.vehicleModel === 'Trike' ? 'Kawasaki Barako 175' : data.user.vehicleModel;
+          await AsyncStorage.setItem('driverVehicle', cleanModel);
         }
         if (data.user?.vehicleType) {
           await AsyncStorage.setItem('driverVehicleType', data.user.vehicleType);

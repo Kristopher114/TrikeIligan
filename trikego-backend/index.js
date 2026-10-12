@@ -241,11 +241,12 @@ app.post('/api/driver-signup', async (req, res) => {
     // Wait, let's just add username to Drivers table or check Users table directly.
     // Actually, `Drivers` doesn't have a username column. Let's just create the driver and log them in via email/phone in the driver login.
     const insertDriverQuery = `
-      INSERT INTO Drivers (user_id, vehicle_type, license_photo_url)
-      VALUES ($1, $2, $3);
+      INSERT INTO Drivers (user_id, vehicle_type, vehicle_model, license_photo_url)
+      VALUES ($1, $2, $3, $4);
     `;
     const vType = vehicleType === 'SINGLE' ? 'SINGLE' : 'TRICYCLE';
-    await client.query(insertDriverQuery, [userId, vType, licensePhotoUrl || null]);
+    const defaultModel = req.body.vehicleModel || (vType === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175');
+    await client.query(insertDriverQuery, [userId, vType, defaultModel, licensePhotoUrl || null]);
 
     await client.query('COMMIT');
     res.status(201).json({ status: 'success', message: 'Driver created successfully', userId });
@@ -294,7 +295,7 @@ app.post('/api/driver-login', async (req, res) => {
           id: user.id,
           fullName: user.full_name,
           role: user.role,
-          vehicleModel: user.vehicle_model || 'Trike',
+          vehicleModel: user.vehicle_model || (user.vehicle_type === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175'),
           vehicleType: user.vehicle_type || 'TRICYCLE',
           rating: user.rating || 5.0,
           approvalStatus: user.approval_status,
