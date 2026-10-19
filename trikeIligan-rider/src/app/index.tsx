@@ -49,7 +49,7 @@ export default function HomeScreen() {
         <View style={styles.centerContent}>
           <View style={styles.iconContainer}>
             <Image
-              source={require('../../assets/images/tricycle.png')}
+              source={require('../../assets/images/tricycle_rider.png')}
               style={styles.icon}
               resizeMode="contain"
             />
