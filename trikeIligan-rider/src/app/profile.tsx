@@ -178,7 +178,7 @@ export default function DriverProfileScreen() {
                 let cloudData = JSON.parse(cloudRes.body);
 
                 // If new preset does not exist yet in Cloudinary, fall back to existing working preset
-                if (cloudRes.status !== 200 && CLOUDINARY_UPLOAD_PRESET !== 'trike_driver_licenses') {
+                if (cloudRes.status !== 200 && (CLOUDINARY_UPLOAD_PRESET as string) !== 'trike_driver_licenses') {
                     console.warn(`Preset ${CLOUDINARY_UPLOAD_PRESET} failed, trying trike_driver_licenses fallback...`);
                     cloudRes = await FileSystem.uploadAsync(
                         CLOUDINARY_UPLOAD_URL,

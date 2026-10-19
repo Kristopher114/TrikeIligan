@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { UploadType } from 'expo-file-system/legacy';
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -22,7 +21,7 @@ export default function SignupScreen() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [licenseImage, setLicenseImage] = useState(null);
+    const [licenseImage, setLicenseImage] = useState<string | null>(null);
 
     const pickImage = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({

@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
+import { registerForPushNotificationsAsync, triggerNotification } from '../services/notificationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -129,7 +130,10 @@ export default function RiderHome() {
             const rating = await AsyncStorage.getItem('driverRating');
             const photo = await AsyncStorage.getItem('userProfileImage');
 
-            if (id) setDriverId(id);
+            if (id) {
+                setDriverId(id);
+                registerForPushNotificationsAsync(id);
+            }
             if (name) setDriverName(name);
             if (vehicle) setDriverVehicle(vehicle === 'Trike' ? 'Kawasaki Barako 175' : vehicle);
             if (vType) setVehicleType(vType);
@@ -186,7 +190,7 @@ export default function RiderHome() {
 
     // DEMO TIMER LOGIC FOR RIDE REQUEST
     useEffect(() => {
-        let interval: NodeJS.Timeout;
+        let interval: any;
         if (rideState === 'request') {
             setTimer(15);
             interval = setInterval(() => {
@@ -227,7 +231,7 @@ export default function RiderHome() {
         }
     }, [currentLocation, rideState, currentRideOffer]);
 
-    // Listener for Passenger Cancellation
+    // Listener for Passenger Cancellation & Wallet Payment
     useEffect(() => {
         if (isSocketReady && socketRef.current && driverId) {
             const socket = socketRef.current;
@@ -238,20 +242,67 @@ export default function RiderHome() {
                     setRideState('idle');
                     setCurrentRideOffer(null);
                     setShowPassengerCancelledModal(true);
+                    triggerNotification(
+                        'Ride Cancelled ⚠️',
+                        'The passenger has cancelled the active ride.',
+                        {},
+                        'rides'
+                    );
                 }
             };
 
             const handleWalletSuccess = (data: any) => {
-                setWalletPaymentAmount(data.amount);
+                const amountNum = parseFloat(data.amount || '0');
+                setWalletPaymentAmount(amountNum);
                 setShowWalletSuccessModal(true);
+                triggerNotification(
+                    'Wallet Payment Received! 💰',
+                    `₱${amountNum.toFixed(2)} was credited directly to your TrikeIligan Wallet!`,
+                    { type: 'WALLET_SUCCESS', amount: amountNum },
+                    'payments'
+                );
+            };
+
+            const handleSwitchWallet = (data: any) => {
+                setCurrentRideOffer((prev: any) => {
+                    if (prev) {
+                        return { ...prev, paymentMethod: 'WALLET' };
+                    }
+                    return prev;
+                });
+                triggerNotification(
+                    'App Wallet Payment Selected! 💳',
+                    `Passenger is paying directly via App Wallet (₱${parseFloat(data.fare || '0').toFixed(2)}). No cash collection required!`,
+                    { type: 'WALLET_SELECTED', rideId: data.rideId },
+                    'payments'
+                );
+            };
+
+            const handleSwitchCash = (data: any) => {
+                setCurrentRideOffer((prev: any) => {
+                    if (prev) {
+                        return { ...prev, paymentMethod: 'CASH' };
+                    }
+                    return prev;
+                });
+                triggerNotification(
+                    'Payment Changed: Cash 💵',
+                    'Passenger switched payment method to Cash. Collect upon drop-off.',
+                    { type: 'CASH_SELECTED', rideId: data.rideId },
+                    'rides'
+                );
             };
 
             socket.on(eventName, handleCancel);
             socket.on(`wallet_payment_success_${driverId}`, handleWalletSuccess);
+            socket.on(`passenger_switched_to_wallet_${driverId}`, handleSwitchWallet);
+            socket.on(`passenger_switched_to_cash_${driverId}`, handleSwitchCash);
 
             return () => {
                 socket.off(eventName, handleCancel);
                 socket.off(`wallet_payment_success_${driverId}`, handleWalletSuccess);
+                socket.off(`passenger_switched_to_wallet_${driverId}`, handleSwitchWallet);
+                socket.off(`passenger_switched_to_cash_${driverId}`, handleSwitchCash);
             };
         }
     }, [driverId, isSocketReady]);
@@ -332,18 +383,30 @@ export default function RiderHome() {
             if (rideStateRef.current === 'idle') {
                 setCurrentRideOffer(data);
                 setRideState('request');
+
+                const isWallet = data.paymentMethod === 'WALLET';
+                triggerNotification(
+                    'New Ride Request! 🛺',
+                    `${isWallet ? '💳 [Wallet] ' : '💵 [Cash] '}Pickup: ${data.pickup || 'Nearby'} • ₱${parseFloat(data.fare || '0').toFixed(2)}`,
+                    { type: 'RIDE_OFFER', rideId: data.rideId },
+                    isWallet ? 'payments' : 'rides'
+                );
             }
         });
 
         socket.on('cancel_ride_offer', (data) => {
             if (rideStateRef.current === 'request') {
-                // We use setRideState which has access to the latest state via closure, 
-                // but checking currentRideOffer might be tricky due to closures.
-                // However, since we just need to dismiss the request if it matches:
+                // Dismiss the request if it matches
                 setCurrentRideOffer((prev: any) => {
                     if (prev && prev.rideId === data.rideId) {
                         setRideState('idle');
                         setShowPassengerCancelledModal(true);
+                        triggerNotification(
+                            'Ride Offer Cancelled ⚠️',
+                            'The passenger cancelled their ride request.',
+                            {},
+                            'rides'
+                        );
                         return null;
                     }
                     return prev;
@@ -449,6 +512,23 @@ export default function RiderHome() {
 
         setRideState('active');
         setIsOnline(false); // Can't take more rides while active
+
+        // Notify Driver of Match & Wallet mode
+        triggerNotification(
+            'Ride Matched! ✅',
+            `You are matched with ${currentRideOffer.passengerName || 'your passenger'}! Heading to pickup.`,
+            { type: 'MATCHED', rideId: currentRideOffer.rideId },
+            'rides'
+        );
+
+        if (currentRideOffer.paymentMethod === 'WALLET') {
+            triggerNotification(
+                'App Wallet Payment 💳',
+                `Passenger is paying directly via App Wallet (₱${parseFloat(currentRideOffer.fare || '0').toFixed(2)}). No cash collection required!`,
+                { type: 'WALLET_SELECTED' },
+                'payments'
+            );
+        }
     };
 
     const handleLogout = async () => {
@@ -732,7 +812,21 @@ export default function RiderHome() {
                             <TouchableOpacity style={styles.btnWarningCancel} onPress={() => setShowDeclineModal(false)}>
                                 <Text style={styles.btnWarningCancelText}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.btnWarningConfirm} onPress={() => { setShowDeclineModal(false); setRideState('idle'); }}>
+                            <TouchableOpacity
+                                style={styles.btnWarningConfirm}
+                                onPress={() => {
+                                    if (socketRef.current && currentRideOffer) {
+                                        socketRef.current.emit('driver_decline_ride', {
+                                            driverId: driverId,
+                                            passengerId: currentRideOffer.passengerId,
+                                            rideId: currentRideOffer.rideId
+                                        });
+                                    }
+                                    setShowDeclineModal(false);
+                                    setRideState('idle');
+                                    setCurrentRideOffer(null);
+                                }}
+                            >
                                 <Text style={styles.btnWarningConfirmText}>Yes, Decline</Text>
                             </TouchableOpacity>
                         </View>
@@ -752,7 +846,27 @@ export default function RiderHome() {
                             <TouchableOpacity style={styles.btnWarningCancel} onPress={() => setShowCancelModal(false)}>
                                 <Text style={styles.btnWarningCancelText}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.btnWarningConfirm} onPress={() => { setShowCancelModal(false); setRideState('idle'); }}>
+                            <TouchableOpacity
+                                style={styles.btnWarningConfirm}
+                                onPress={() => {
+                                    if (socketRef.current && currentRideOffer) {
+                                        socketRef.current.emit('driver_cancel_ride', {
+                                            rideId: currentRideOffer.rideId,
+                                            passengerId: currentRideOffer.passengerId,
+                                            driverId: driverId
+                                        });
+                                    }
+                                    setShowCancelModal(false);
+                                    setRideState('idle');
+                                    setCurrentRideOffer(null);
+                                    triggerNotification(
+                                        'Ride Cancelled',
+                                        'You cancelled the active ride.',
+                                        {},
+                                        'rides'
+                                    );
+                                }}
+                            >
                                 <Text style={styles.btnWarningConfirmText}>Yes, Cancel</Text>
                             </TouchableOpacity>
                         </View>
@@ -927,6 +1041,8 @@ const styles = StyleSheet.create({
     activeSubtitle: { fontFamily: 'Outfit_500Medium', fontSize: 14, color: '#888', marginTop: 2 },
     contactButtons: { flexDirection: 'row', gap: 8 },
     contactBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center' },
+    btnNavigate: { flexDirection: 'row', width: '100%', backgroundColor: '#2196F3', borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+    btnNavigateText: { fontFamily: 'Outfit_700Bold', color: '#FFF', fontSize: 14, marginLeft: 8 },
     btnPickedUp: { width: '100%', backgroundColor: '#1B6E45', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 16 },
     btnPickedUpText: { fontFamily: 'Outfit_700Bold', color: '#FFF', fontSize: 14 },
     cancelRideText: { fontFamily: 'Outfit_700Bold', color: '#F44336', fontSize: 14 },

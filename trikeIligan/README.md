@@ -211,3 +211,25 @@ This document serves as a complete log of everything we accomplished during our 
   - Integrated with the real-time `ride_accepted_<passengerId>` socket stream, backed by backend database lookups so the passenger app automatically receives the driver's photo upon ride acceptance.
   - Corrected vehicle model presentation to accurately reflect the driver's motorcycle make/model (`Kawasaki Barako 175`).
 
+### October 19, 2026 - Real-Time Push & Device Notifications & In-App Wallet Alert System
+
+- **Native Push Notification Architecture (`expo-notifications@57.0.23`)**:
+  - Installed and configured `expo-notifications` natively without reliance on Expo Go, making both apps completely standalone/production-build ready.
+  - Configured high-priority Android notification channels:
+    - `rides`: MAX importance, green LED (`#1B6E45`), vibration pattern for ride dispatches and state updates.
+    - `payments`: MAX importance, customized vibration pattern for wallet payments and balance alerts.
+  - Configured `app.json` with native plugins, vibration permissions (`android.permission.VIBRATE`), and Android 13+ runtime notification permissions (`android.permission.POST_NOTIFICATIONS`).
+- **Database Schema Expansion (Neon PostgreSQL)**:
+  - Migrated `Users` table by adding a dedicated `push_token VARCHAR(255)` column.
+  - Created `POST /api/save-push-token` endpoint on the Express backend to securely record and associate Expo push tokens with authenticated user accounts.
+- **Match Notifications (Passenger & Rider)**:
+  - **Passenger Side**: Triggered local and remote notifications when a driver accepts (`Driver Matched! 🛺 - {driverName} accepted your ride ({vehicle})`).
+  - **Rider Side**: Triggered notifications when accepting a ride request (`Ride Matched! ✅ - Heading to pickup`).
+- **Bidirectional Cancellation Alerts**:
+  - **Passenger Cancelling**: When passenger cancels in `rider-selection.tsx`, backend immediately fires a push notification and emits `ride_cancelled_by_passenger_<driverId>` to notify the driver and returns them to idle. Passenger also receives a confirmation notification.
+  - **Driver Declining or Cancelling**: When driver declines or cancels an active ride, backend notifies the passenger via push notification and socket event (`ride_cancelled_by_driver_<passengerId>`), updating the booking screen immediately.
+- **App Wallet In-App Payment Alerts**:
+  - When the passenger selects or switches to **Wallet Payment**, both socket event (`passenger_switched_to_wallet`) and push notifications alert the driver: `Payment Mode: App Wallet 💳 - Passenger is paying directly via App Wallet (₱{fare}). No cash collection required!`.
+  - Upon ride completion, an atomic PostgreSQL transaction transfers funds, and both parties receive instantaneous receipts: driver is notified of credited funds and passenger is notified of payment completion.
+
+

@@ -121,3 +121,19 @@
   - Updated the `driver_accept_ride` socket dispatch in `home.tsx` to include the driver's verified profile picture (`driverPhoto`, `driverImage`, `driver`).
   - Enables the passenger's confirmed rider selection card to render the assigned driver's real image in real time.
 
+### October 19, 2026 - Real-Time Push & Device Notifications & App Wallet Alert Flow
+
+- **Native Push Notification Architecture (`expo-notifications@57.0.23`)**:
+  - Integrated `expo-notifications` for standalone production builds without Expo Go limitations.
+  - Setup custom Android notification channels (`rides` and `payments`) with MAX importance and distinct vibration patterns.
+  - Automatic push token registration with backend on driver profile load.
+- **Match Notifications**:
+  - Driver automatically receives system banner and push alert upon accepting a ride (`Ride Matched! ✅ - You are matched with {passengerName}! Heading to pickup`).
+- **Cancellation Notifications**:
+  - **Passenger Cancels**: Driver app automatically triggers `Ride Cancelled ⚠️` local notification and push alert, closes active ride modal, and returns driver to looking for rides.
+  - **Driver Cancels/Declines**: Emits socket events and triggers confirmation notifications to keep driver informed.
+- **App Wallet Notifications & Real-Time Mode Indicator**:
+  - **Ride Request**: Driver sees `[Wallet]` badge and receives an alert if the passenger requested with Wallet payment.
+  - **During Trip**: If the passenger switches payment to Wallet, the driver is instantly notified: `Payment Mode: App Wallet 💳 - Passenger is paying directly via App Wallet (₱{fare}). No cash collection required!`.
+  - **Ride Completion**: When passenger pays via Wallet, driver receives a `Wallet Payment Received! 💰` alert and green success modal displaying credited funds.
+

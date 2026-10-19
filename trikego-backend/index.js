@@ -494,6 +494,73 @@ app.put('/api/user-profile/:userId', async (req, res) => {
   }
 });
 
+// Helper to send Expo Push Notifications
+async function sendPushNotification(pushToken, title, body, data = {}, channelId = 'rides') {
+  if (!pushToken || typeof pushToken !== 'string') return;
+  if (!pushToken.startsWith('ExponentPushToken[') && !pushToken.startsWith('ExpoPushToken[')) {
+    console.log('Skipping push notification; not an Expo push token:', pushToken);
+    return;
+  }
+
+  try {
+    const message = {
+      to: pushToken,
+      sound: 'default',
+      title: title,
+      body: body,
+      data: data,
+      channelId: channelId,
+      priority: 'high',
+      _displayInForeground: true
+    };
+
+    const response = await axios.post('https://exp.host/--/api/v2/push/send', message, {
+      headers: {
+        'Accept': 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log(`Push notification sent (${title}):`, response.data?.data?.status || 'delivered');
+  } catch (error) {
+    console.error('Error sending push notification:', error?.response?.data || error.message);
+  }
+}
+
+// Helper to fetch user push token from database
+async function getUserPushToken(userId) {
+  if (!userId) return null;
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT push_token FROM Users WHERE id = $1', [userId]);
+    return res.rows.length > 0 ? res.rows[0].push_token : null;
+  } catch (err) {
+    console.error('Error fetching push token for user', userId, err);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+// POST Save or update user push notification token
+app.post('/api/save-push-token', async (req, res) => {
+  const { userId, pushToken } = req.body;
+  if (!userId || !pushToken) {
+    return res.status(400).json({ status: 'error', message: 'userId and pushToken are required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('UPDATE Users SET push_token = $1 WHERE id = $2', [pushToken, userId]);
+    res.json({ status: 'success', message: 'Push token saved successfully' });
+  } catch (err) {
+    console.error('Error saving push token:', err);
+    res.status(500).json({ status: 'error', message: 'Failed to save push token' });
+  } finally {
+    client.release();
+  }
+});
+
 // Helper to get PayPal Access Token
 async function getPayPalAccessToken() {
   const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
@@ -927,14 +994,99 @@ io.on('connection', (socket) => {
         client.release();
       }
     })();
+
+    // Send Push Notifications on Match
+    (async () => {
+      try {
+        const passengerToken = await getUserPushToken(data.passengerId);
+        if (passengerToken) {
+          await sendPushNotification(
+            passengerToken,
+            'Driver Matched! 🛺',
+            `${data.driverName} has accepted your ride (${data.driverVehicle || 'Kawasaki Barako 175'}).`,
+            { type: 'RIDE_MATCHED', rideId: data.rideId, driverId: data.driverId },
+            'rides'
+          );
+        }
+
+        const driverToken = await getUserPushToken(data.driverId);
+        if (driverToken) {
+          await sendPushNotification(
+            driverToken,
+            'Ride Confirmed! ✅',
+            `You are matched with ${data.passengerName || 'your passenger'}! Heading to pickup.`,
+            { type: 'RIDE_MATCHED', rideId: data.rideId },
+            'rides'
+          );
+
+          if (data.paymentMethod === 'WALLET') {
+            await sendPushNotification(
+              driverToken,
+              'App Wallet Payment 💳',
+              `Passenger is paying via App Wallet (₱${parseFloat(data.fare || 0).toFixed(2)}). No cash collection required!`,
+              { type: 'WALLET_SELECTED', rideId: data.rideId, fare: data.fare },
+              'payments'
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Error sending match push notifications:', err);
+      }
+    })();
   });
 
   // 4. Driver declines ride
-  socket.on('driver_decline_ride', (data) => {
+  socket.on('driver_decline_ride', async (data) => {
     console.log(`Driver ${data.driverId} declined ride from Passenger ${data.passengerId}`);
     io.emit(`ride_declined_${data.passengerId}`, {
       driverId: data.driverId
     });
+
+    try {
+      const passengerToken = await getUserPushToken(data.passengerId);
+      if (passengerToken) {
+        await sendPushNotification(
+          passengerToken,
+          'Driver Unavailable',
+          'The driver was unable to accept. Searching for nearby drivers...',
+          { type: 'DRIVER_DECLINED', rideId: data.rideId },
+          'rides'
+        );
+      }
+    } catch (e) {
+      console.error('Error sending decline push notification:', e);
+    }
+  });
+
+  // 4.5 Driver cancels active ride
+  socket.on('driver_cancel_ride', async (data) => {
+    console.log(`Driver ${data.driverId} cancelled active ride ${data.rideId}`);
+    io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
+    io.emit(`ride_cancelled_by_driver_${data.passengerId}`, { rideId: data.rideId });
+
+    // Update in DB
+    (async () => {
+      const client = await pool.connect();
+      try {
+        await client.query("UPDATE Rides SET status = 'CANCELLED' WHERE id = $1", [data.rideId]);
+      } catch (e) {} finally { client.release(); }
+      broadcastAdminStats();
+    })();
+
+    try {
+      const passengerToken = await getUserPushToken(data.passengerId);
+      if (passengerToken) {
+        await sendPushNotification(
+          passengerToken,
+          'Ride Cancelled by Driver ⚠️',
+          'Your driver had to cancel this trip. Please try booking another ride.',
+          { type: 'DRIVER_CANCELLED', rideId: data.rideId },
+          'rides'
+        );
+      }
+    } catch (e) {
+      console.error('Error sending driver cancel push notification:', e);
+    }
   });
 
   // 5. Driver updates live location during active ride
@@ -948,11 +1100,26 @@ io.on('connection', (socket) => {
   });
 
   // 6. Ride status updates (Picked Up, Completed, Cancelled)
-  socket.on('passenger_cancel_ride', (data) => {
+  socket.on('passenger_cancel_ride', async (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
     io.emit('cancel_ride_offer', { rideId: data.rideId });
     if (data.driverId) {
       io.emit(`ride_cancelled_by_passenger_${data.driverId}`, { rideId: data.rideId });
+
+      try {
+        const driverToken = await getUserPushToken(data.driverId);
+        if (driverToken) {
+          await sendPushNotification(
+            driverToken,
+            'Ride Cancelled ⚠️',
+            'The passenger has cancelled the ride request.',
+            { type: 'RIDE_CANCELLED', rideId: data.rideId },
+            'rides'
+          );
+        }
+      } catch (e) {
+        console.error('Error sending passenger cancel push notification:', e);
+      }
     }
 
     // Update in DB
@@ -961,8 +1128,63 @@ io.on('connection', (socket) => {
       try {
         await client.query("UPDATE Rides SET status = 'CANCELLED' WHERE id = $1", [data.rideId]);
       } catch(e) {} finally { client.release(); }
+      broadcastAdminStats();
     })();
   });
+
+  // 6.2 Passenger switches payment method to Wallet
+  socket.on('passenger_switched_to_wallet', async (data) => {
+    console.log(`Passenger ${data.passengerId} switched to Wallet payment for ride ${data.rideId}`);
+    if (data.driverId) {
+      io.emit(`passenger_switched_to_wallet_${data.driverId}`, {
+        rideId: data.rideId,
+        fare: data.fare,
+        passengerName: data.passengerName
+      });
+
+      try {
+        const driverToken = await getUserPushToken(data.driverId);
+        if (driverToken) {
+          await sendPushNotification(
+            driverToken,
+            'Payment Changed: App Wallet 💳',
+            `${data.passengerName || 'Passenger'} selected App Wallet (₱${parseFloat(data.fare || 0).toFixed(2)}). No cash collection needed!`,
+            { type: 'WALLET_SELECTED', rideId: data.rideId, fare: data.fare },
+            'payments'
+          );
+        }
+      } catch (err) {
+        console.error('Error sending wallet switch push notification:', err);
+      }
+    }
+  });
+
+  // 6.3 Passenger switches payment method to Cash
+  socket.on('passenger_switched_to_cash', async (data) => {
+    console.log(`Passenger ${data.passengerId} switched to Cash payment for ride ${data.rideId}`);
+    if (data.driverId) {
+      io.emit(`passenger_switched_to_cash_${data.driverId}`, {
+        rideId: data.rideId,
+        fare: data.fare
+      });
+
+      try {
+        const driverToken = await getUserPushToken(data.driverId);
+        if (driverToken) {
+          await sendPushNotification(
+            driverToken,
+            'Payment Changed: Cash 💵',
+            `Passenger changed payment method to Cash (₱${parseFloat(data.fare || 0).toFixed(2)}). Collect upon drop-off.`,
+            { type: 'CASH_SELECTED', rideId: data.rideId, fare: data.fare },
+            'rides'
+          );
+        }
+      } catch (err) {
+        console.error('Error sending cash switch push notification:', err);
+      }
+    }
+  });
+
   socket.on('passenger_picked_up', (data) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'picked_up' });
     if (data.passengerId) {
@@ -1027,6 +1249,35 @@ io.on('connection', (socket) => {
         io.emit(`wallet_payment_success_${data.driverId}`, { 
             amount: fareAmount 
         });
+
+        // Send Push Notifications for Wallet Payment
+        (async () => {
+          try {
+            const driverToken = await getUserPushToken(data.driverId);
+            if (driverToken) {
+              await sendPushNotification(
+                driverToken,
+                'Wallet Payment Received! 💰',
+                `₱${fareAmount.toFixed(2)} has been credited to your TrikeIligan Wallet!`,
+                { type: 'WALLET_SUCCESS', amount: fareAmount, rideId: data.rideId },
+                'payments'
+              );
+            }
+
+            const passengerToken = await getUserPushToken(data.passengerId);
+            if (passengerToken) {
+              await sendPushNotification(
+                passengerToken,
+                'Payment Complete 💳',
+                `₱${fareAmount.toFixed(2)} was successfully paid using your Wallet balance.`,
+                { type: 'WALLET_PAID', amount: fareAmount, rideId: data.rideId },
+                'payments'
+              );
+            }
+          } catch (err) {
+            console.error('Error sending wallet push notification:', err);
+          }
+        })();
       } catch (e) {
         await client.query('ROLLBACK');
         console.error('Wallet payment error:', e);

@@ -18,7 +18,13 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kritiano.trikeIligan"
+      "package": "com.kritiano.trikeIligan",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "output": "static",
@@ -39,6 +45,13 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow TrikeIligan to use your location to find rides nearby."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1B6E45"
+        }
       ]
     ],
     "experiments": {
@@ -46,7 +59,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "7c795a9c-636c-4119-9da6-48a3a92c75aa"
+      }
     }
   }
 }

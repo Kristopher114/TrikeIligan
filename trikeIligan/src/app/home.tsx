@@ -10,6 +10,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
+import { registerForPushNotificationsAsync } from '../services/notificationService';
+
 export default function HomeScreen() {
     const router = useRouter();
     const [fullName, setFullName] = useState('');
@@ -29,6 +31,7 @@ export default function HomeScreen() {
                     if (id) {
                         setUserId(id);
                         fetchBalance(id);
+                        registerForPushNotificationsAsync(id);
                     }
                 } catch (e) {
                     console.error("Failed to load user data", e);

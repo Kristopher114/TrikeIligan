@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
+import { triggerNotification } from '../services/notificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -101,32 +102,79 @@ export default function RiderSelectionScreen() {
         });
         socketRef.current = socket;
 
-        // Listen for driver accepting the ride
+        // Listen for driver accepting the ride (MATCHED)
         socket.on(`ride_accepted_${passengerId}`, (data) => {
             console.log('Driver accepted!', data);
             setDriverData(data);
             setRideStatus('accepted');
+            triggerNotification(
+                'Driver Matched! 🛺',
+                `${data.driverName || 'Your driver'} accepted your ride (${data.driverVehicle || 'Kawasaki Barako 175'})!`,
+                { type: 'MATCHED', driverId: data.driverId, rideId: data.rideId },
+                'rides'
+            );
         });
 
+        // Listen for driver declining the ride
         socket.on(`ride_declined_${passengerId}`, () => {
+            triggerNotification(
+                'Driver Unavailable',
+                'A driver was unable to accept. Searching for nearby drivers...',
+                {},
+                'rides'
+            );
             alert("Driver declined. Please try booking again.");
             setRideStatus('idle');
+        });
+
+        // Listen for driver cancelling the ride
+        socket.on(`ride_cancelled_by_driver_${passengerId}`, () => {
+            triggerNotification(
+                'Ride Cancelled by Driver ⚠️',
+                'Your driver cancelled this ride. Please try booking another trip.',
+                {},
+                'rides'
+            );
+            alert("The driver had to cancel this ride. Please try booking another trip.");
+            setRideStatus('idle');
+            setDriverData(null);
         });
 
         socket.on(`ride_picked_up_${passengerId}`, (data) => {
             console.log('Driver picked up passenger!');
             setRideStatus('picked_up');
+            triggerNotification(
+                'Trip In Progress 🛵',
+                'You have been picked up! Enjoy your safe ride.',
+                {},
+                'rides'
+            );
         });
 
         socket.on(`ride_completed_${passengerId}`, (data) => {
             console.log('Ride completed, showing rating modal');
+            if (paymentMethod === 'WALLET') {
+                triggerNotification(
+                    'Payment Complete 💳',
+                    `₱${fare} successfully paid using your Wallet balance.`,
+                    { type: 'WALLET_PAYMENT' },
+                    'payments'
+                );
+            } else {
+                triggerNotification(
+                    'Ride Completed! 🏁',
+                    `You have arrived at your destination with ${driverData?.driverName || 'your driver'}.`,
+                    {},
+                    'rides'
+                );
+            }
             setShowRatingModal(true);
         });
 
         return () => {
             socket.disconnect();
         };
-    }, [passengerId]);
+    }, [passengerId, paymentMethod, fare, driverData]);
 
     const handleConfirmBooking = () => {
         if (!socketRef.current) {
@@ -169,8 +217,37 @@ export default function RiderSelectionScreen() {
                 return;
             }
             setPaymentMethod('WALLET');
+            if (socketRef.current && driverData?.driverId) {
+                socketRef.current.emit('passenger_switched_to_wallet', {
+                    rideId: currentRideId,
+                    driverId: driverData.driverId,
+                    passengerId: passengerId,
+                    passengerName: passengerName,
+                    fare: fare,
+                });
+            }
+            triggerNotification(
+                'Wallet Selected 💳',
+                `Payment set to App Wallet (₱${fare}). Fare will be deducted automatically.`,
+                {},
+                'payments'
+            );
         } else {
             setPaymentMethod('CASH');
+            if (socketRef.current && driverData?.driverId) {
+                socketRef.current.emit('passenger_switched_to_cash', {
+                    rideId: currentRideId,
+                    driverId: driverData.driverId,
+                    passengerId: passengerId,
+                    fare: fare,
+                });
+            }
+            triggerNotification(
+                'Cash Selected 💵',
+                `Payment set to Cash (₱${fare}). Please prepare exact change for driver.`,
+                {},
+                'rides'
+            );
         }
     };
 
@@ -404,7 +481,7 @@ export default function RiderSelectionScreen() {
                 )}
 
                 {/* Payment Row */}
-                <TouchableOpacity style={styles.paymentRow} onPress={togglePaymentMethod} disabled={rideStatus !== 'idle'}>
+                <TouchableOpacity style={styles.paymentRow} onPress={togglePaymentMethod} disabled={showRatingModal}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Ionicons name={paymentMethod === 'CASH' ? 'cash-outline' : 'wallet-outline'} size={20} color="#1B6E45" />
                         <Text style={styles.paymentText}>
@@ -461,6 +538,12 @@ export default function RiderSelectionScreen() {
                                             driverId: driverData?.driverId
                                         });
                                     }
+                                    triggerNotification(
+                                        'Ride Cancelled',
+                                        'You cancelled your ride request.',
+                                        {},
+                                        'rides'
+                                    );
                                     setIsCancelModalVisible(false);
                                     router.back();
                                 }}
