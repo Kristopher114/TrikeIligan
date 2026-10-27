@@ -892,18 +892,30 @@ io.on('connection', (socket) => {
       const activeDriversCount = activeDriversRoom ? activeDriversRoom.size : 0;
 
       const client = await pool.connect();
-      const ridesQuery = await client.query(
-        "SELECT COUNT(*) as ongoing_count FROM Rides WHERE status = 'IN_PROGRESS'"
-      );
-      client.release();
+      try {
+        const ridesQuery = await client.query(
+          "SELECT COUNT(*) as ongoing_count FROM Rides WHERE status IN ('IN_PROGRESS', 'ACCEPTED')"
+        );
+        const revenueQuery = await client.query(
+          "SELECT COALESCE(SUM(base_fare), 0) as daily_revenue FROM Rides WHERE status = 'COMPLETED' AND created_at >= CURRENT_DATE"
+        );
 
-      io.to('admin_room').emit('admin_stats_update', {
-        activeDrivers: activeDriversCount,
-        ongoingRides: parseInt(ridesQuery.rows[0].ongoing_count) || 0
-      });
+        io.to('admin_room').emit('admin_stats_update', {
+          activeDrivers: activeDriversCount,
+          ongoingRides: parseInt(ridesQuery.rows[0].ongoing_count) || 0,
+          dailyRevenue: parseFloat(revenueQuery.rows[0].daily_revenue) || 0
+        });
+      } finally {
+        client.release();
+      }
     } catch (e) {
       console.error('Error broadcasting admin stats:', e);
     }
+  };
+
+  // Helper function to broadcast live dispatch logs to admin dashboard
+  const broadcastDispatchLog = (logItem) => {
+    io.to('admin_room').emit('dispatch_log_update', logItem);
   };
 
   // Admin Web joins
@@ -988,6 +1000,19 @@ io.on('connection', (socket) => {
           INSERT INTO Rides (id, passenger_id, driver_id, status, pickup_address, dropoff_address, base_fare, payment_method)
           VALUES ($1, $2, $3, 'ACCEPTED', $4, $5, $6, $7)
         `, [data.rideId, data.passengerId, data.driverId, data.pickup || '', data.dropoff || '', data.fare || 0, data.paymentMethod || 'CASH']);
+
+        broadcastDispatchLog({
+          id: data.rideId,
+          status: 'ACCEPTED',
+          pickup_address: data.pickup || '',
+          dropoff_address: data.dropoff || '',
+          base_fare: data.fare || 0,
+          payment_method: data.paymentMethod || 'CASH',
+          created_at: new Date().toISOString(),
+          passenger_name: data.passengerName || 'Passenger',
+          driver_name: data.driverName || 'Driver'
+        });
+        broadcastAdminStats();
       } catch (e) {
         console.error('Error inserting ride into DB:', e);
       } finally {
@@ -1069,6 +1094,7 @@ io.on('connection', (socket) => {
       const client = await pool.connect();
       try {
         await client.query("UPDATE Rides SET status = 'CANCELLED' WHERE id = $1", [data.rideId]);
+        broadcastDispatchLog({ id: data.rideId, status: 'CANCELLED' });
       } catch (e) {} finally { client.release(); }
       broadcastAdminStats();
     })();
@@ -1127,6 +1153,7 @@ io.on('connection', (socket) => {
       const client = await pool.connect();
       try {
         await client.query("UPDATE Rides SET status = 'CANCELLED' WHERE id = $1", [data.rideId]);
+        broadcastDispatchLog({ id: data.rideId, status: 'CANCELLED' });
       } catch(e) {} finally { client.release(); }
       broadcastAdminStats();
     })();
@@ -1196,6 +1223,7 @@ io.on('connection', (socket) => {
       const client = await pool.connect();
       try {
         await client.query("UPDATE Rides SET status = 'IN_PROGRESS' WHERE id = $1", [data.rideId]);
+        broadcastDispatchLog({ id: data.rideId, status: 'IN_PROGRESS' });
       } catch(e) {} finally { client.release(); }
       broadcastAdminStats();
     })();
@@ -1212,6 +1240,7 @@ io.on('connection', (socket) => {
       const client = await pool.connect();
       try {
         await client.query("UPDATE Rides SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = $1", [data.rideId]);
+        broadcastDispatchLog({ id: data.rideId, status: 'COMPLETED', completed_at: new Date().toISOString() });
       } catch(e) {} finally { client.release(); }
       broadcastAdminStats();
     };
@@ -1448,6 +1477,49 @@ app.get('/api/admin/reports', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching reports:', err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// GET Recent Dispatch Logs (Admin Monitoring)
+app.get('/api/admin/dispatch-logs', async (req, res) => {
+  try {
+    const { status, limit = 20 } = req.query;
+
+    let query = `
+      SELECT 
+        r.id,
+        r.status,
+        r.pickup_address,
+        r.dropoff_address,
+        r.base_fare,
+        r.payment_method,
+        r.created_at,
+        r.completed_at,
+        p.full_name as passenger_name,
+        d.full_name as driver_name
+      FROM Rides r
+      LEFT JOIN Users p ON r.passenger_id = p.id
+      LEFT JOIN Users d ON r.driver_id = d.id
+    `;
+
+    const params = [];
+    if (status && status !== 'ALL') {
+      query += ` WHERE r.status = $1`;
+      params.push(status);
+    }
+
+    query += ` ORDER BY r.created_at DESC LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit) || 20);
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      status: 'success',
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('Error fetching dispatch logs:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 });

@@ -377,3 +377,172 @@
   font-size: 14px;
   color: #111111;
 }
+
+/* Dispatch Logs Enhancements */
+.log-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.log-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-completed {
+  background-color: #1B6E45;
+  box-shadow: 0 0 0 2px rgba(27, 110, 69, 0.2);
+}
+
+.dot-progress {
+  background-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.dot-accepted {
+  background-color: #FF9800;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
+}
+
+.dot-cancelled {
+  background-color: #D32F2F;
+  box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2);
+}
+
+.dot-pending {
+  background-color: #9E9E9E;
+}
+
+.log-time {
+  font-size: 12px;
+  font-weight: 500;
+  color: #777777;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+.filter-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-select {
+  padding: 6px 12px;
+  border: 1px solid #D0D7DE;
+  border-radius: 6px;
+  font-size: 13px;
+  background-color: #FFFFFF;
+  color: #333333;
+  cursor: pointer;
+  outline: none;
+}
+
+.refresh-logs-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid #D0D7DE;
+  border-radius: 6px;
+  background-color: #FFFFFF;
+  color: #555555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refresh-logs-btn:hover {
+  background-color: #F6F8FA;
+  color: #1B6E45;
+}
+
+.view-all-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+  background-color: #F1F8F5;
+  border: 1px solid #C8E6C9;
+  border-radius: 8px;
+  color: #1B6E45;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.view-all-btn:hover {
+  background-color: #E8F5E9;
+}
+
+.logs-loading,
+.logs-empty {
+  padding: 24px;
+  text-align: center;
+  color: #888888;
+  font-size: 13px;
+  background-color: #FAFDFB;
+  border-radius: 8px;
+  border: 1px dashed #E0E0E0;
+}
+
+/* Modal for Ride Details and All Logs */
+.admin-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.admin-modal-box {
+  background-color: #FFFFFF;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 640px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.admin-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #EEEEEE;
+  padding-bottom: 12px;
+}
+
+.admin-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.admin-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #888888;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-modal-close:hover {
+  color: #111111;
+}
