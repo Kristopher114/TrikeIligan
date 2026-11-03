@@ -94,6 +94,24 @@ async function sendVerificationEmail(toEmail, fullName, code) {
   console.log(`[EMAIL OTP] Verification code for ${toEmail} (${fullName}): ${code}`);
 
   try {
+    // 0. Check Google Apps Script HTTPS Webhook (bypasses Render Free Tier SMTP port block using Gmail over HTTPS 443)
+    if (process.env.GOOGLE_SCRIPT_URL) {
+      await axios.post(
+        process.env.GOOGLE_SCRIPT_URL,
+        {
+          to: toEmail,
+          subject,
+          html: htmlContent
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          maxRedirects: 5
+        }
+      );
+      console.log(`[EMAIL OTP] Sent via Google Apps Script HTTPS to ${toEmail}`);
+      return true;
+    }
+
     // 1. Check Resend HTTP API
     if (process.env.RESEND_API_KEY) {
       await axios.post(

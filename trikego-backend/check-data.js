@@ -30,7 +30,7 @@ async function queryNeon(sql) {
 async function checkData() {
   try {
     console.log("=== USERS TABLE ===");
-    const users = await queryNeon('SELECT id, full_name, email, phone_number, role, wallet_balance FROM Users');
+    const users = await queryNeon('SELECT id, full_name, email, phone_number, role, is_email_verified, email_verification_code, wallet_balance FROM Users');
     console.table(users);
 
     console.log("\n=== PASSENGERS TABLE ===");
