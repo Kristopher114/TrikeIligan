@@ -60,7 +60,25 @@ export default function LoginScreen() {
         }
         router.push('/home');
       } else {
-        Alert.alert('Login Failed', data.message || 'Invalid username or password');
+        if (response.status === 403 && (data.status === 'unverified' || data.requiresVerification)) {
+          Alert.alert(
+            'Verify Your Email',
+            data.message || 'Please verify your email address before logging in.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Enter Code',
+                onPress: () =>
+                  router.push({
+                    pathname: '/verify-email' as any,
+                    params: { email: data.email || username.trim() },
+                  }),
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Login Failed', data.message || 'Invalid username or password');
+        }
       }
     } catch (error) {
       console.error('Login error:', error);

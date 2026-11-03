@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -19,15 +20,129 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Test database connection on startup
-pool.connect((err, client, release) => {
+// Test database connection on startup & ensure email verification columns exist
+pool.connect(async (err, client, release) => {
   if (err) {
     console.error('Error acquiring client', err.stack);
   } else {
     console.log('Successfully connected to Neon PostgreSQL database!');
-    release();
+    try {
+      await client.query(`
+        ALTER TABLE Users
+          ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS email_verification_code VARCHAR(6),
+          ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMP;
+      `);
+    } catch (schemaErr) {
+      console.error('Error ensuring email verification columns:', schemaErr.message);
+    } finally {
+      release();
+    }
   }
 });
+
+// Helper: Generate 6-digit OTP code
+function generateOTPCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Helper: Send 6-digit Email Verification Code (supports Resend, Brevo, or Gmail/SMTP via Nodemailer)
+async function sendVerificationEmail(toEmail, fullName, code) {
+  const subject = `${code} is your TrikeIligan verification code`;
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 28px; border: 1px solid #E4F6EB; border-radius: 16px; background-color: #FFFFFF;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #1B6E45; margin: 0; font-size: 26px;">TrikeIligan</h2>
+        <p style="color: #666666; font-size: 14px; margin-top: 4px;">Email Address Verification</p>
+      </div>
+      <p style="color: #222222; font-size: 15px;">Hello <strong>${fullName || 'there'}</strong>,</p>
+      <p style="color: #444444; font-size: 14px; line-height: 1.6;">
+        Thank you for registering with TrikeIligan! Please enter the 6-digit verification code below in the mobile app to verify your email address:
+      </p>
+      <div style="margin: 28px 0; padding: 18px; background-color: #E4F6EB; border: 1px dashed #1B6E45; border-radius: 12px; text-align: center;">
+        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1B6E45;">${code}</span>
+      </div>
+      <p style="color: #777777; font-size: 12px; text-align: center;">
+        This code will expire in <strong>15 minutes</strong>. If you did not create an account, you can safely ignore this email.
+      </p>
+    </div>
+  `;
+
+  console.log(`[EMAIL OTP] Verification code for ${toEmail} (${fullName}): ${code}`);
+
+  try {
+    // 1. Check Resend HTTP API
+    if (process.env.RESEND_API_KEY) {
+      await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from: process.env.EMAIL_FROM || 'TrikeIligan <onboarding@resend.dev>',
+          to: [toEmail],
+          subject,
+          html: htmlContent
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`[EMAIL OTP] Sent via Resend API to ${toEmail}`);
+      return true;
+    }
+
+    // 2. Check Brevo HTTP API
+    if (process.env.BREVO_API_KEY) {
+      await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+          sender: {
+            name: 'TrikeIligan',
+            email: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@trikeiligan.com'
+          },
+          to: [{ email: toEmail, name: fullName || toEmail }],
+          subject,
+          htmlContent
+        },
+        {
+          headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`[EMAIL OTP] Sent via Brevo API to ${toEmail}`);
+      return true;
+    }
+
+    // 3. Check Gmail / SMTP via Nodemailer
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      const transporter = nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE || 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || `"TrikeIligan" <${process.env.EMAIL_USER}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent
+      });
+      console.log(`[EMAIL OTP] Sent via Nodemailer (${process.env.EMAIL_USER}) to ${toEmail}`);
+      return true;
+    }
+
+    console.warn('[EMAIL OTP] No EMAIL_USER/EMAIL_PASS, RESEND_API_KEY, or BREVO_API_KEY configured. Code logged above.');
+    return false;
+  } catch (err) {
+    console.error('[EMAIL OTP] Error sending email:', err.response?.data || err.message);
+    return false;
+  }
+}
 
 // Root Endpoint (For cron-job pings to keep the server awake)
 app.get('/', (req, res) => {
@@ -67,28 +182,53 @@ app.post('/api/signup', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     // Check if user already exists
-    const existingUser = await client.query('SELECT id FROM Users WHERE email = $1 OR phone_number = $2', [email, phoneNumber]);
+    const existingUser = await client.query(
+      'SELECT id, email, is_email_verified FROM Users WHERE LOWER(email) = LOWER($1) OR phone_number = $2',
+      [cleanEmail, phoneNumber]
+    );
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(409).json({ status: 'error', message: 'User with this email or phone number already exists' });
+    }
+
+    // Check if passenger username is already taken
+    const existingUsername = await client.query(
+      'SELECT user_id FROM Passengers WHERE LOWER(username) = LOWER($1)',
+      [username.trim()]
+    );
+    if (existingUsername.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', message: 'Username is already taken' });
     }
 
     // Hash the password
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Insert into Users table
+    // Generate 6-digit OTP & 15-minute expiry
+    const verificationCode = generateOTPCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Insert into Users table with is_email_verified = FALSE
     const insertUserQuery = `
-      INSERT INTO Users (full_name, phone_number, email, password_hash, role)
-      VALUES ($1, $2, $3, $4, 'PASSENGER')
+      INSERT INTO Users (full_name, phone_number, email, password_hash, role, is_email_verified, email_verification_code, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, 'PASSENGER', FALSE, $5, $6)
       RETURNING id;
     `;
-    const userResult = await client.query(insertUserQuery, [fullName, phoneNumber, email, passwordHash]);
+    const userResult = await client.query(insertUserQuery, [
+      fullName.trim(),
+      phoneNumber.trim(),
+      cleanEmail,
+      passwordHash,
+      verificationCode,
+      expiresAt
+    ]);
     const userId = userResult.rows[0].id;
 
     // Insert into Passengers table
@@ -96,10 +236,22 @@ app.post('/api/signup', async (req, res) => {
       INSERT INTO Passengers (user_id, username)
       VALUES ($1, $2);
     `;
-    await client.query(insertPassengerQuery, [userId, username]);
+    await client.query(insertPassengerQuery, [userId, username.trim()]);
 
     await client.query('COMMIT');
-    res.status(201).json({ status: 'success', message: 'User created successfully', userId });
+
+    // Send OTP verification email asynchronously
+    sendVerificationEmail(cleanEmail, fullName.trim(), verificationCode).catch((e) =>
+      console.error('Failed to send signup OTP email:', e)
+    );
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Account created! Please enter the 6-digit verification code sent to your email.',
+      userId,
+      email: cleanEmail,
+      requiresVerification: true
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Signup error:', error);
@@ -151,7 +303,7 @@ app.post('/api/admin-login', async (req, res) => {
   }
 });
 
-// Login Endpoint
+// Login Endpoint (Passenger)
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
 
@@ -162,12 +314,12 @@ app.post('/api/login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, u.password_hash, u.role, p.username 
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, u.password_hash, u.role, u.is_email_verified, p.username 
       FROM Users u 
       JOIN Passengers p ON u.id = p.user_id 
-      WHERE p.username = $1
+      WHERE p.username = $1 OR LOWER(u.email) = LOWER($1)
     `;
-    const result = await client.query(query, [username]);
+    const result = await client.query(query, [username.trim()]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ status: 'error', message: 'Invalid username or password' });
@@ -178,6 +330,26 @@ app.post('/api/login', async (req, res) => {
 
     if (!passwordMatch) {
       return res.status(401).json({ status: 'error', message: 'Invalid username or password' });
+    }
+
+    // Check email verification status
+    if (user.is_email_verified === false) {
+      const newCode = generateOTPCode();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await client.query(
+        'UPDATE Users SET email_verification_code = $1, email_verification_expires_at = $2 WHERE id = $3',
+        [newCode, expiresAt, user.id]
+      );
+      sendVerificationEmail(user.email, user.full_name, newCode).catch((e) =>
+        console.error('Failed to send login OTP email:', e)
+      );
+
+      return res.status(403).json({
+        status: 'unverified',
+        requiresVerification: true,
+        email: user.email,
+        message: 'Please verify your email address before logging in. We have sent a 6-digit verification code to your email.'
+      });
     }
 
     res.json({
@@ -209,12 +381,16 @@ app.post('/api/driver-signup', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     // Check if user already exists
-    const existingUser = await client.query('SELECT id FROM Users WHERE email = $1 OR phone_number = $2', [email, phoneNumber]);
+    const existingUser = await client.query(
+      'SELECT id FROM Users WHERE LOWER(email) = LOWER($1) OR phone_number = $2',
+      [cleanEmail, phoneNumber]
+    );
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(409).json({ status: 'error', message: 'User with this email or phone number already exists' });
@@ -224,22 +400,26 @@ app.post('/api/driver-signup', async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Insert into Users table as DRIVER
+    // Generate 6-digit OTP & 15-minute expiry
+    const verificationCode = generateOTPCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Insert into Users table as DRIVER with is_email_verified = FALSE
     const insertUserQuery = `
-      INSERT INTO Users (full_name, phone_number, email, password_hash, role)
-      VALUES ($1, $2, $3, $4, 'DRIVER')
+      INSERT INTO Users (full_name, phone_number, email, password_hash, role, is_email_verified, email_verification_code, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, 'DRIVER', FALSE, $5, $6)
       RETURNING id;
     `;
-    const userResult = await client.query(insertUserQuery, [fullName, phoneNumber, email, passwordHash]);
+    const userResult = await client.query(insertUserQuery, [
+      fullName.trim(),
+      phoneNumber.trim(),
+      cleanEmail,
+      passwordHash,
+      verificationCode,
+      expiresAt
+    ]);
     const userId = userResult.rows[0].id;
 
-    // Insert into Drivers table (we map username here for consistency or use license number later)
-    // The current Drivers table does not have a username column, but let's insert the user_id.
-    // Wait, the auth needs username. In `init-db.js`, Drivers has `user_id, license_number, vehicle_plate, vehicle_model, rating, is_active`.
-    // So the driver logs in with email or phone number instead? Or we can check Users table directly for login?
-    // To match passenger, let's just log in via email or phone, or add username to drivers. 
-    // Wait, let's just add username to Drivers table or check Users table directly.
-    // Actually, `Drivers` doesn't have a username column. Let's just create the driver and log them in via email/phone in the driver login.
     const insertDriverQuery = `
       INSERT INTO Drivers (user_id, vehicle_type, vehicle_model, license_photo_url)
       VALUES ($1, $2, $3, $4);
@@ -249,7 +429,19 @@ app.post('/api/driver-signup', async (req, res) => {
     await client.query(insertDriverQuery, [userId, vType, defaultModel, licensePhotoUrl || null]);
 
     await client.query('COMMIT');
-    res.status(201).json({ status: 'success', message: 'Driver created successfully', userId });
+
+    // Send OTP verification email asynchronously
+    sendVerificationEmail(cleanEmail, fullName.trim(), verificationCode).catch((e) =>
+      console.error('Failed to send driver signup OTP email:', e)
+    );
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Driver account created! Please enter the 6-digit verification code sent to your email.',
+      userId,
+      email: cleanEmail,
+      requiresVerification: true
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Driver signup error:', error);
@@ -270,12 +462,12 @@ app.post('/api/driver-login', async (req, res) => {
   const client = await pool.connect();
   try {
     const query = `
-      SELECT u.id, u.full_name, u.password_hash, u.role, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
+      SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.is_email_verified, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
-      WHERE u.email = $1 OR u.phone_number = $1
+      WHERE LOWER(u.email) = LOWER($1) OR u.phone_number = $1
     `;
-    const result = await client.query(query, [username]);
+    const result = await client.query(query, [username.trim()]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials or not a driver' });
@@ -288,23 +480,142 @@ app.post('/api/driver-login', async (req, res) => {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
     }
 
-      res.json({
-        status: 'success',
-        message: 'Login successful',
-        user: {
-          id: user.id,
-          fullName: user.full_name,
-          role: user.role,
-          vehicleModel: user.vehicle_model || (user.vehicle_type === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175'),
-          vehicleType: user.vehicle_type || 'TRICYCLE',
-          rating: user.rating || 5.0,
-          approvalStatus: user.approval_status,
-          rejectionReason: user.rejection_reason
-        }
+    // Check email verification status
+    if (user.is_email_verified === false) {
+      const newCode = generateOTPCode();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await client.query(
+        'UPDATE Users SET email_verification_code = $1, email_verification_expires_at = $2 WHERE id = $3',
+        [newCode, expiresAt, user.id]
+      );
+      sendVerificationEmail(user.email, user.full_name, newCode).catch((e) =>
+        console.error('Failed to send driver login OTP email:', e)
+      );
+
+      return res.status(403).json({
+        status: 'unverified',
+        requiresVerification: true,
+        email: user.email,
+        message: 'Please verify your email address before logging in. We have sent a 6-digit verification code to your email.'
       });
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        role: user.role,
+        vehicleModel: user.vehicle_model || (user.vehicle_type === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175'),
+        vehicleType: user.vehicle_type || 'TRICYCLE',
+        rating: user.rating || 5.0,
+        approvalStatus: user.approval_status,
+        rejectionReason: user.rejection_reason
+      }
+    });
   } catch (error) {
     console.error('Driver login error:', error);
     res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Verify Email OTP Endpoint (Passenger & Driver)
+app.post('/api/verify-email', async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ status: 'error', message: 'Email and verification code are required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT id, full_name, email, role, is_email_verified, email_verification_code, email_verification_expires_at FROM Users WHERE LOWER(email) = LOWER($1)',
+      [email.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Account not found for this email address' });
+    }
+
+    const user = result.rows[0];
+
+    if (user.is_email_verified === true) {
+      return res.json({ status: 'success', message: 'Email is already verified!' });
+    }
+
+    if (!user.email_verification_code || user.email_verification_code.trim() !== String(code).trim()) {
+      return res.status(400).json({ status: 'error', message: 'Invalid verification code. Please check the 6-digit code and try again.' });
+    }
+
+    if (user.email_verification_expires_at && new Date() > new Date(user.email_verification_expires_at)) {
+      return res.status(400).json({ status: 'error', message: 'Verification code has expired. Please tap Resend Code to get a new one.' });
+    }
+
+    await client.query(
+      'UPDATE Users SET is_email_verified = TRUE, email_verification_code = NULL, email_verification_expires_at = NULL WHERE id = $1',
+      [user.id]
+    );
+
+    res.json({
+      status: 'success',
+      message: 'Email verified successfully! You can now log in.',
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Resend Email Verification OTP Endpoint (Passenger & Driver)
+app.post('/api/resend-verification', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ status: 'error', message: 'Email address is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT id, full_name, email, is_email_verified FROM Users WHERE LOWER(email) = LOWER($1)',
+      [email.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'No account found with this email address' });
+    }
+
+    const user = result.rows[0];
+
+    if (user.is_email_verified === true) {
+      return res.json({ status: 'success', message: 'This email is already verified.' });
+    }
+
+    const newCode = generateOTPCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await client.query(
+      'UPDATE Users SET email_verification_code = $1, email_verification_expires_at = $2 WHERE id = $3',
+      [newCode, expiresAt, user.id]
+    );
+
+    await sendVerificationEmail(user.email, user.full_name, newCode);
+
+    res.json({
+      status: 'success',
+      message: 'A new 6-digit verification code has been sent to your email.'
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   } finally {
     client.release();
   }

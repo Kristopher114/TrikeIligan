@@ -108,7 +108,8 @@ export default function SignupScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                Alert.alert(
+                router.replace({ pathname: '/verify-email' as any, params: { email: data.email || email.trim().toLowerCase() } });
+                if (false) Alert.alert(
                     'Application Submitted', 
                     'Your account has been created and your application is currently PENDING. Please wait for the admin to approve your account before you can start receiving rides.',
                     [

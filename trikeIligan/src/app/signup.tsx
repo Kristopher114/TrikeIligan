@@ -62,8 +62,8 @@ export default function SignupScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                Alert.alert('Success', 'Account created successfully!');
-                router.replace('/login');
+                router.replace({ pathname: '/verify-email' as any, params: { email: data.email || email.trim().toLowerCase() } });
+
             } else {
                 Alert.alert('Signup Failed', data.message || 'An error occurred during signup.');
             }
