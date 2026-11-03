@@ -15,10 +15,33 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Database connection pool
+// Database connection pool (tuned for Neon serverless PostgreSQL)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 10000,
 });
+
+pool.on('error', (err) => {
+  console.error('Handled idle PostgreSQL client error:', err.message);
+});
+
+// Helper: Acquire a healthy database client (automatically discards stale Neon idle connections)
+async function getDbClient() {
+  let client = await pool.connect();
+  try {
+    await client.query('SELECT 1');
+    return client;
+  } catch (err) {
+    console.warn('Discarding stale pooled DB connection and reconnecting:', err.message);
+    try {
+      client.release(true);
+    } catch (_) {}
+    client = await pool.connect();
+    return client;
+  }
+}
 
 // Test database connection on startup & ensure email verification columns exist
 pool.connect(async (err, client, release) => {
@@ -120,6 +143,9 @@ async function sendVerificationEmail(toEmail, fullName, code) {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       const transporter = nodemailer.createTransport({
         service: process.env.EMAIL_SERVICE || 'gmail',
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS
@@ -182,38 +208,68 @@ app.post('/api/signup', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const client = await pool.connect();
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPhone = String(phoneNumber).trim();
+  const cleanUsername = String(username).trim();
+  const cleanFullName = String(fullName).trim();
+
+  let client;
   try {
+    client = await getDbClient();
     await client.query('BEGIN');
 
-    // Check if user already exists
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(String(password), saltRounds);
+
+    // Generate 6-digit OTP & 15-minute expiry
+    const verificationCode = generateOTPCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Check if user already exists by email or phone
     const existingUser = await client.query(
-      'SELECT id, email, is_email_verified FROM Users WHERE LOWER(email) = LOWER($1) OR phone_number = $2',
-      [cleanEmail, phoneNumber]
+      'SELECT id, email, phone_number, is_email_verified, role FROM Users WHERE LOWER(email) = LOWER($1) OR TRIM(phone_number) = $2',
+      [cleanEmail, cleanPhone]
     );
+
     if (existingUser.rows.length > 0) {
+      const found = existingUser.rows[0];
+      // If the existing account is still unverified, update their OTP and let them verify!
+      if (found.is_email_verified === false && found.email.toLowerCase() === cleanEmail) {
+        await client.query(
+          `UPDATE Users
+           SET full_name = $1, password_hash = $2, email_verification_code = $3, email_verification_expires_at = $4
+           WHERE id = $5`,
+          [cleanFullName, passwordHash, verificationCode, expiresAt, found.id]
+        );
+        await client.query('COMMIT');
+
+        sendVerificationEmail(cleanEmail, cleanFullName, verificationCode).catch((e) =>
+          console.error('Failed to send re-signup OTP email:', e)
+        );
+
+        return res.status(200).json({
+          status: 'success',
+          message: 'Verification code sent to your email.',
+          userId: found.id,
+          email: cleanEmail,
+          requiresVerification: true
+        });
+      }
+
       await client.query('ROLLBACK');
       return res.status(409).json({ status: 'error', message: 'User with this email or phone number already exists' });
     }
 
     // Check if passenger username is already taken
     const existingUsername = await client.query(
-      'SELECT user_id FROM Passengers WHERE LOWER(username) = LOWER($1)',
-      [username.trim()]
+      'SELECT user_id FROM Passengers WHERE LOWER(TRIM(username)) = LOWER($1)',
+      [cleanUsername]
     );
     if (existingUsername.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(409).json({ status: 'error', message: 'Username is already taken' });
     }
-
-    // Hash the password
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    // Generate 6-digit OTP & 15-minute expiry
-    const verificationCode = generateOTPCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // Insert into Users table with is_email_verified = FALSE
     const insertUserQuery = `
@@ -222,8 +278,8 @@ app.post('/api/signup', async (req, res) => {
       RETURNING id;
     `;
     const userResult = await client.query(insertUserQuery, [
-      fullName.trim(),
-      phoneNumber.trim(),
+      cleanFullName,
+      cleanPhone,
       cleanEmail,
       passwordHash,
       verificationCode,
@@ -236,12 +292,12 @@ app.post('/api/signup', async (req, res) => {
       INSERT INTO Passengers (user_id, username)
       VALUES ($1, $2);
     `;
-    await client.query(insertPassengerQuery, [userId, username.trim()]);
+    await client.query(insertPassengerQuery, [userId, cleanUsername]);
 
     await client.query('COMMIT');
 
     // Send OTP verification email asynchronously
-    sendVerificationEmail(cleanEmail, fullName.trim(), verificationCode).catch((e) =>
+    sendVerificationEmail(cleanEmail, cleanFullName, verificationCode).catch((e) =>
       console.error('Failed to send signup OTP email:', e)
     );
 
@@ -253,11 +309,13 @@ app.post('/api/signup', async (req, res) => {
       requiresVerification: true
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     console.error('Signup error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
+    res.status(500).json({ status: 'error', message: error.detail || error.message || 'Internal server error', error: error.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -267,8 +325,9 @@ app.post('/api/admin-login', async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ status: 'error', message: 'Email and password are required' });
   }
-  const client = await pool.connect();
+  let client;
   try {
+    client = await getDbClient();
     const query = `
       SELECT u.id, u.full_name, u.password_hash, u.role, u.email
       FROM Users u
@@ -299,7 +358,7 @@ app.post('/api/admin-login', async (req, res) => {
     console.error('Admin login error:', error);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -311,22 +370,23 @@ app.post('/api/login', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Username and password are required' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await getDbClient();
     const query = `
       SELECT u.id, u.full_name, u.email, u.phone_number, u.profile_picture_url, u.password_hash, u.role, u.is_email_verified, p.username 
       FROM Users u 
       JOIN Passengers p ON u.id = p.user_id 
-      WHERE p.username = $1 OR LOWER(u.email) = LOWER($1)
+      WHERE LOWER(TRIM(p.username)) = LOWER($1) OR LOWER(TRIM(u.email)) = LOWER($1)
     `;
-    const result = await client.query(query, [username.trim()]);
+    const result = await client.query(query, [String(username).trim()]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ status: 'error', message: 'Invalid username or password' });
     }
 
     const user = result.rows[0];
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    const passwordMatch = await bcrypt.compare(String(password), user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({ status: 'error', message: 'Invalid username or password' });
@@ -367,9 +427,9 @@ app.post('/api/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal server error', error: error.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -381,28 +441,55 @@ app.post('/api/driver-signup', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'All fields are required' });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPhone = String(phoneNumber).trim();
+  const cleanFullName = String(fullName).trim();
 
-    // Check if user already exists
-    const existingUser = await client.query(
-      'SELECT id FROM Users WHERE LOWER(email) = LOWER($1) OR phone_number = $2',
-      [cleanEmail, phoneNumber]
-    );
-    if (existingUser.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ status: 'error', message: 'User with this email or phone number already exists' });
-    }
+  let client;
+  try {
+    client = await getDbClient();
+    await client.query('BEGIN');
 
     // Hash the password
     const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await bcrypt.hash(String(password), saltRounds);
 
     // Generate 6-digit OTP & 15-minute expiry
     const verificationCode = generateOTPCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Check if user already exists
+    const existingUser = await client.query(
+      'SELECT id, email, is_email_verified FROM Users WHERE LOWER(email) = LOWER($1) OR TRIM(phone_number) = $2',
+      [cleanEmail, cleanPhone]
+    );
+    if (existingUser.rows.length > 0) {
+      const found = existingUser.rows[0];
+      if (found.is_email_verified === false && found.email.toLowerCase() === cleanEmail) {
+        await client.query(
+          `UPDATE Users
+           SET full_name = $1, password_hash = $2, email_verification_code = $3, email_verification_expires_at = $4
+           WHERE id = $5`,
+          [cleanFullName, passwordHash, verificationCode, expiresAt, found.id]
+        );
+        await client.query('COMMIT');
+
+        sendVerificationEmail(cleanEmail, cleanFullName, verificationCode).catch((e) =>
+          console.error('Failed to send driver re-signup OTP email:', e)
+        );
+
+        return res.status(200).json({
+          status: 'success',
+          message: 'Verification code sent to your email.',
+          userId: found.id,
+          email: cleanEmail,
+          requiresVerification: true
+        });
+      }
+
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', message: 'User with this email or phone number already exists' });
+    }
 
     // Insert into Users table as DRIVER with is_email_verified = FALSE
     const insertUserQuery = `
@@ -411,8 +498,8 @@ app.post('/api/driver-signup', async (req, res) => {
       RETURNING id;
     `;
     const userResult = await client.query(insertUserQuery, [
-      fullName.trim(),
-      phoneNumber.trim(),
+      cleanFullName,
+      cleanPhone,
       cleanEmail,
       passwordHash,
       verificationCode,
@@ -431,7 +518,7 @@ app.post('/api/driver-signup', async (req, res) => {
     await client.query('COMMIT');
 
     // Send OTP verification email asynchronously
-    sendVerificationEmail(cleanEmail, fullName.trim(), verificationCode).catch((e) =>
+    sendVerificationEmail(cleanEmail, cleanFullName, verificationCode).catch((e) =>
       console.error('Failed to send driver signup OTP email:', e)
     );
 
@@ -443,11 +530,13 @@ app.post('/api/driver-signup', async (req, res) => {
       requiresVerification: true
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     console.error('Driver signup error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
+    res.status(500).json({ status: 'error', message: error.detail || error.message || 'Internal server error', error: error.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -459,22 +548,23 @@ app.post('/api/driver-login', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Email/Phone and password are required' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await getDbClient();
     const query = `
       SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.is_email_verified, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
-      WHERE LOWER(u.email) = LOWER($1) OR u.phone_number = $1
+      WHERE LOWER(TRIM(u.email)) = LOWER($1) OR TRIM(u.phone_number) = $1
     `;
-    const result = await client.query(query, [username.trim()]);
+    const result = await client.query(query, [String(username).trim()]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials or not a driver' });
     }
 
     const user = result.rows[0];
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    const passwordMatch = await bcrypt.compare(String(password), user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
@@ -517,9 +607,9 @@ app.post('/api/driver-login', async (req, res) => {
     });
   } catch (error) {
     console.error('Driver login error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error', error: error.message });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal server error', error: error.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -531,11 +621,12 @@ app.post('/api/verify-email', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Email and verification code are required' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await getDbClient();
     const result = await client.query(
-      'SELECT id, full_name, email, role, is_email_verified, email_verification_code, email_verification_expires_at FROM Users WHERE LOWER(email) = LOWER($1)',
-      [email.trim()]
+      'SELECT id, full_name, email, role, is_email_verified, email_verification_code, email_verification_expires_at FROM Users WHERE LOWER(TRIM(email)) = LOWER($1)',
+      [String(email).trim()]
     );
 
     if (result.rows.length === 0) {
@@ -568,9 +659,9 @@ app.post('/api/verify-email', async (req, res) => {
     });
   } catch (error) {
     console.error('Verify email error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error' });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -582,11 +673,12 @@ app.post('/api/resend-verification', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Email address is required' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await getDbClient();
     const result = await client.query(
-      'SELECT id, full_name, email, is_email_verified FROM Users WHERE LOWER(email) = LOWER($1)',
-      [email.trim()]
+      'SELECT id, full_name, email, is_email_verified FROM Users WHERE LOWER(TRIM(email)) = LOWER($1)',
+      [String(email).trim()]
     );
 
     if (result.rows.length === 0) {
@@ -607,7 +699,9 @@ app.post('/api/resend-verification', async (req, res) => {
       [newCode, expiresAt, user.id]
     );
 
-    await sendVerificationEmail(user.email, user.full_name, newCode);
+    sendVerificationEmail(user.email, user.full_name, newCode).catch((e) =>
+      console.error('Failed to send resend OTP email:', e)
+    );
 
     res.json({
       status: 'success',
@@ -615,9 +709,9 @@ app.post('/api/resend-verification', async (req, res) => {
     });
   } catch (error) {
     console.error('Resend verification error:', error);
-    res.status(500).json({ status: 'error', message: 'Internal server error' });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 // Haversine distance calculation function
