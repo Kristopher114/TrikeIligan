@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { MdOutlineMap, MdRefresh, MdClose, MdSearch } from "react-icons/md";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { MdOutlineMap, MdRefresh, MdClose, MdSearch, MdMyLocation } from "react-icons/md";
 import { io } from 'socket.io-client';
 import '../css/dashboard.css';
 
 const BACKEND_URL = 'https://trikeiligan.onrender.com';
+const ILIGAN_CENTER = [8.2280, 124.2452];
 
 // Format short ride ID for display (e.g. ride_1792483523207 -> #TRK-3207)
 function formatRideId(id) {
@@ -54,6 +55,7 @@ export default function Monitoring() {
         dailyRevenue: 0
     });
 
+    const [onlineDrivers, setOnlineDrivers] = useState([]);
     const [dispatchLogs, setDispatchLogs] = useState([]);
     const [loadingLogs, setLoadingLogs] = useState(true);
     const [filterStatus, setFilterStatus] = useState('ALL');
@@ -61,6 +63,29 @@ export default function Monitoring() {
     const [selectedRide, setSelectedRide] = useState(null);
     const [showAllModal, setShowAllModal] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const mapContainerRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const markersMapRef = useRef(new Map());
+    const hasAutoCenteredRef = useRef(false);
+
+    // Fetch currently online drivers from REST API
+    const fetchOnlineDrivers = useCallback(async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/admin/online-drivers`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && Array.isArray(data.data)) {
+                setOnlineDrivers(data.data);
+                setLiveStats(prev => ({
+                    ...prev,
+                    activeDrivers: Math.max(prev.activeDrivers, data.data.length)
+                }));
+            }
+        } catch (err) {
+            console.error('Error fetching online drivers:', err);
+        }
+    }, []);
 
     // Fetch dispatch logs from backend REST API
     const fetchDispatchLogs = useCallback(async (statusToFetch = filterStatus) => {
@@ -84,7 +109,189 @@ export default function Monitoring() {
     // Initial load and filter change
     useEffect(() => {
         fetchDispatchLogs(filterStatus);
-    }, [filterStatus, fetchDispatchLogs]);
+        fetchOnlineDrivers();
+    }, [filterStatus, fetchDispatchLogs, fetchOnlineDrivers]);
+
+    // Initialize Leaflet Map inside .map-container
+    useEffect(() => {
+        const L = window.L;
+        if (!L || !mapContainerRef.current || mapInstanceRef.current) return;
+
+        const map = L.map(mapContainerRef.current, {
+            center: ILIGAN_CENTER,
+            zoom: 14,
+            zoomControl: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        mapInstanceRef.current = map;
+
+        // Ensure proper sizing after layout paint
+        const timer = setTimeout(() => {
+            map.invalidateSize();
+        }, 250);
+
+        return () => {
+            clearTimeout(timer);
+            markersMapRef.current.clear();
+            map.remove();
+            mapInstanceRef.current = null;
+        };
+    }, []);
+
+    // Sync onlineDrivers state to Leaflet markers in real-time
+    useEffect(() => {
+        const L = window.L;
+        const map = mapInstanceRef.current;
+        if (!L || !map) return;
+
+        const currentMarkers = markersMapRef.current;
+        const activeIds = new Set();
+
+        onlineDrivers.forEach((driver) => {
+            if (!driver || !driver.driverId) return;
+            const lat = Number(driver.lat);
+            const lon = Number(driver.lon);
+            if (isNaN(lat) || isNaN(lon)) return;
+
+            const id = String(driver.driverId);
+            activeIds.add(id);
+
+            const isOnTrip = driver.status === 'ON_TRIP';
+            const badgeColor = isOnTrip ? '#2196F3' : '#1B6E45';
+            const pulseRgba = isOnTrip ? 'rgba(33, 150, 243, 0.35)' : 'rgba(27, 110, 69, 0.35)';
+            const isSingle = driver.vehicleType === 'SINGLE';
+            const vehicleEmoji = isSingle ? '🏍️' : '🛺';
+            const shortName = (driver.driverName || 'Rider').split(' ')[0];
+
+            const customIcon = L.divIcon({
+                className: 'custom-rider-leaflet-icon',
+                html: `
+                    <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -50%);">
+                        <div style="
+                            width:38px;
+                            height:38px;
+                            border-radius:50%;
+                            background:${badgeColor};
+                            border:3px solid #FFFFFF;
+                            box-shadow:0 0 0 6px ${pulseRgba}, 0 4px 10px rgba(0,0,0,0.28);
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            font-size:18px;
+                        ">${vehicleEmoji}</div>
+                        <div style="
+                            margin-top:3px;
+                            background:#111827;
+                            color:#FFFFFF;
+                            font-size:10px;
+                            font-weight:700;
+                            padding:2px 7px;
+                            border-radius:10px;
+                            white-space:nowrap;
+                            box-shadow:0 2px 4px rgba(0,0,0,0.25);
+                        ">${shortName}</div>
+                    </div>
+                `,
+                iconSize: [44, 54],
+                iconAnchor: [22, 22],
+                popupAnchor: [0, -20]
+            });
+
+            const popupHtml = `
+                <div style="font-family:'Inter',sans-serif;min-width:190px;padding:2px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+                        <strong style="font-size:14px;color:#111;">${driver.driverName || 'Active Rider'}</strong>
+                        <span style="
+                            background:${isOnTrip ? '#E3F2FD' : '#E8F5E9'};
+                            color:${badgeColor};
+                            font-size:10px;
+                            font-weight:700;
+                            padding:2px 8px;
+                            border-radius:10px;
+                        ">${isOnTrip ? 'ON TRIP' : 'ONLINE'}</span>
+                    </div>
+                    <div style="font-size:12px;color:#444;margin-bottom:4px;">
+                        ${vehicleEmoji} <strong>${driver.vehicleType || 'TRICYCLE'}</strong> • ${driver.driverVehicle || 'Kawasaki Barako 175'}
+                    </div>
+                    <div style="font-size:11px;color:#777;">
+                        📍 ${lat.toFixed(5)}, ${lon.toFixed(5)}
+                    </div>
+                    <div style="font-size:10px;color:#999;margin-top:4px;">
+                        Updated ${formatTimeAgo(driver.updatedAt)}
+                    </div>
+                </div>
+            `;
+
+            if (currentMarkers.has(id)) {
+                const existingMarker = currentMarkers.get(id);
+                existingMarker.setLatLng([lat, lon]);
+                existingMarker.setIcon(customIcon);
+                existingMarker.setPopupContent(popupHtml);
+            } else {
+                const newMarker = L.marker([lat, lon], { icon: customIcon })
+                    .addTo(map)
+                    .bindPopup(popupHtml);
+                currentMarkers.set(id, newMarker);
+            }
+        });
+
+        // Remove markers for drivers who went offline
+        for (const [id, marker] of currentMarkers.entries()) {
+            if (!activeIds.has(id)) {
+                map.removeLayer(marker);
+                currentMarkers.delete(id);
+            }
+        }
+
+        // Auto-pan to the first online driver once when riders appear
+        if (onlineDrivers.length > 0 && !hasAutoCenteredRef.current) {
+            const first = onlineDrivers[0];
+            if (first && !isNaN(Number(first.lat)) && !isNaN(Number(first.lon))) {
+                map.flyTo([Number(first.lat), Number(first.lon)], 15, { duration: 0.8 });
+                hasAutoCenteredRef.current = true;
+            }
+        } else if (onlineDrivers.length === 0) {
+            hasAutoCenteredRef.current = false;
+        }
+    }, [onlineDrivers]);
+
+    // Focus/pan map on a specific online driver and open their popup
+    const focusDriverOnMap = (driver) => {
+        const map = mapInstanceRef.current;
+        if (!map || !driver) return;
+        const lat = Number(driver.lat);
+        const lon = Number(driver.lon);
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        map.flyTo([lat, lon], 16, { duration: 0.7 });
+        const marker = markersMapRef.current.get(String(driver.driverId));
+        if (marker) {
+            setTimeout(() => marker.openPopup(), 350);
+        }
+    };
+
+    // Recenter map to Iligan City or fit all online drivers
+    const handleRecenterMap = () => {
+        const L = window.L;
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        if (L && onlineDrivers.length > 1) {
+            const bounds = L.latLngBounds(
+                onlineDrivers.map(d => [Number(d.lat), Number(d.lon)])
+            );
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+        } else if (onlineDrivers.length === 1) {
+            focusDriverOnMap(onlineDrivers[0]);
+        } else {
+            map.flyTo(ILIGAN_CENTER, 14, { duration: 0.7 });
+        }
+    };
 
     // Real-time WebSocket connection
     useEffect(() => {
@@ -92,7 +299,7 @@ export default function Monitoring() {
 
         socket.on('connect', () => {
             console.log('Connected to dispatch server for live monitoring');
-            socket.emit('admin_join'); // Join admin room for stats & logs
+            socket.emit('admin_join'); // Join admin room for stats, logs & driver locations
         });
 
         // Listen for live stats updates
@@ -104,6 +311,17 @@ export default function Monitoring() {
                 ongoingRides: stats.ongoingRides ?? prev.ongoingRides,
                 dailyRevenue: stats.dailyRevenue !== undefined ? stats.dailyRevenue : prev.dailyRevenue
             }));
+        });
+
+        // Listen for live online driver GPS updates
+        socket.on('admin_drivers_update', (drivers) => {
+            if (Array.isArray(drivers)) {
+                setOnlineDrivers(drivers);
+                setLiveStats(prev => ({
+                    ...prev,
+                    activeDrivers: drivers.length
+                }));
+            }
         });
 
         // Listen for live dispatch log updates
@@ -130,6 +348,7 @@ export default function Monitoring() {
     const handleManualRefresh = () => {
         setIsRefreshing(true);
         fetchDispatchLogs(filterStatus);
+        fetchOnlineDrivers();
     };
 
     // Filter logs by search input
@@ -176,6 +395,18 @@ export default function Monitoring() {
                             className="search-input"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && searchQuery.trim()) {
+                                    const q = searchQuery.toLowerCase();
+                                    const matchedDriver = onlineDrivers.find(d =>
+                                        (d.driverName || '').toLowerCase().includes(q) ||
+                                        (d.driverVehicle || '').toLowerCase().includes(q)
+                                    );
+                                    if (matchedDriver) {
+                                        focusDriverOnMap(matchedDriver);
+                                    }
+                                }
+                            }}
                             style={{ paddingLeft: '32px' }}
                         />
                         <MdSearch size={18} color="#888" style={{ position: 'absolute', left: 10, pointerEvents: 'none' }} />
@@ -210,13 +441,143 @@ export default function Monitoring() {
                         </div>
                     </div>
 
-                    {/* Live Map Area Placeholder */}
-                    <div className="map-container" style={{ minHeight: '380px' }}>
-                        <div className="map-placeholder">
-                            <MdOutlineMap size={48} color="#A5D6A7" style={{ marginBottom: 16 }} />
-                            <h3>Live Map Rendering Active</h3>
-                            <p>Real-time location stream connected to Iligan City tricycle fleet.</p>
+                    {/* Live Interactive Rider Map */}
+                    <div
+                        className="map-container"
+                        style={{
+                            minHeight: '420px',
+                            height: '420px',
+                            position: 'relative',
+                            border: '1px solid #E0E0E0',
+                            borderRadius: '12px',
+                            overflow: 'hidden'
+                        }}
+                    >
+                        {/* Leaflet Mount Container */}
+                        <div
+                            ref={mapContainerRef}
+                            style={{ width: '100%', height: '100%', zIndex: 1 }}
+                        />
+
+                        {/* Top-Left Live Status Overlay Pill */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '12px',
+                                left: '54px',
+                                zIndex: 500,
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                backdropFilter: 'blur(4px)',
+                                padding: '6px 12px',
+                                borderRadius: '20px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#111827',
+                                border: '1px solid #E5E7EB'
+                            }}
+                        >
+                            <span
+                                style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: onlineDrivers.length > 0 ? '#10B981' : '#9CA3AF',
+                                    boxShadow: onlineDrivers.length > 0 ? '0 0 0 3px rgba(16, 185, 129, 0.25)' : 'none'
+                                }}
+                            />
+                            {onlineDrivers.length > 0
+                                ? `${onlineDrivers.length} Rider${onlineDrivers.length > 1 ? 's' : ''} Online on Map`
+                                : 'Waiting for riders to press GO ONLINE...'}
                         </div>
+
+                        {/* Top-Right Recenter Map Button */}
+                        <button
+                            onClick={handleRecenterMap}
+                            title="Recenter Map / Fit Online Riders"
+                            style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                zIndex: 500,
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '8px',
+                                padding: '7px 11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#1B6E45',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                            }}
+                        >
+                            <MdMyLocation size={16} />
+                            <span>{onlineDrivers.length > 0 ? 'Fit Riders' : 'Iligan Center'}</span>
+                        </button>
+
+                        {/* Bottom-Left Online Rider Quick-Select Chips */}
+                        {onlineDrivers.length > 0 && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '12px',
+                                    left: '12px',
+                                    right: '12px',
+                                    zIndex: 500,
+                                    display: 'flex',
+                                    gap: '8px',
+                                    overflowX: 'auto',
+                                    paddingBottom: '2px',
+                                    pointerEvents: 'auto'
+                                }}
+                            >
+                                {onlineDrivers.map((driver) => {
+                                    const isOnTrip = driver.status === 'ON_TRIP';
+                                    return (
+                                        <button
+                                            key={driver.driverId}
+                                            onClick={() => focusDriverOnMap(driver)}
+                                            style={{
+                                                background: 'rgba(17, 24, 39, 0.9)',
+                                                color: '#FFFFFF',
+                                                border: `1.5px solid ${isOnTrip ? '#60A5FA' : '#34D399'}`,
+                                                borderRadius: '18px',
+                                                padding: '5px 12px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                                            }}
+                                            title="Click to locate rider on map"
+                                        >
+                                            <span>{driver.vehicleType === 'SINGLE' ? '🏍️' : '🛺'}</span>
+                                            <span>{driver.driverName || 'Active Rider'}</span>
+                                            <span
+                                                style={{
+                                                    fontSize: '9px',
+                                                    padding: '1px 5px',
+                                                    borderRadius: '8px',
+                                                    background: isOnTrip ? '#2563EB' : '#059669',
+                                                    color: '#FFF'
+                                                }}
+                                            >
+                                                {isOnTrip ? 'ON TRIP' : 'ONLINE'}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
 

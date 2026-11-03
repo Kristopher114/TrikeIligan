@@ -113,12 +113,18 @@ export default function RiderHome() {
     const rideStateRef = useRef(rideState);
     const isOnlineRef = useRef(isOnline);
     const driverIdRef = useRef(driverId);
+    const driverNameRef = useRef(driverName);
+    const driverVehicleRef = useRef(driverVehicle);
     const vehicleTypeRef = useRef(vehicleType);
+    const currentLocationRef = useRef(currentLocation);
 
     useEffect(() => { rideStateRef.current = rideState; }, [rideState]);
     useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
     useEffect(() => { driverIdRef.current = driverId; }, [driverId]);
+    useEffect(() => { driverNameRef.current = driverName; }, [driverName]);
+    useEffect(() => { driverVehicleRef.current = driverVehicle; }, [driverVehicle]);
     useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
+    useEffect(() => { currentLocationRef.current = currentLocation; }, [currentLocation]);
 
     // Load Driver Info
     const loadDriverInfo = async () => {
@@ -342,10 +348,15 @@ export default function RiderHome() {
 
             // Wait a tiny bit for the webview to load before injecting
             setTimeout(async () => {
-                const initialLoc = await Location.getCurrentPositionAsync({});
-                if (webviewRef.current) {
-                    webviewRef.current.injectJavaScript(`updateLocation(${initialLoc.coords.latitude}, ${initialLoc.coords.longitude}); true;`);
-                }
+                try {
+                    const initialLoc = await Location.getCurrentPositionAsync({});
+                    const lat = initialLoc.coords.latitude;
+                    const lng = initialLoc.coords.longitude;
+                    setCurrentLocation({ lat, lon: lng });
+                    if (webviewRef.current) {
+                        webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lng}); true;`);
+                    }
+                } catch (_) {}
             }, 1000);
 
             locationSubscription = await Location.watchPositionAsync(
@@ -361,6 +372,17 @@ export default function RiderHome() {
                     if (webviewRef.current) {
                         webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lng}); true;`);
                     }
+                    if ((isOnlineRef.current || rideStateRef.current === 'active') && socketRef.current && driverIdRef.current) {
+                        socketRef.current.emit('driver_location_stream', {
+                            driverId: driverIdRef.current,
+                            driverName: driverNameRef.current || 'Driver',
+                            driverVehicle: driverVehicleRef.current || 'Kawasaki Barako 175',
+                            vehicleType: vehicleTypeRef.current || 'TRICYCLE',
+                            lat,
+                            lon: lng,
+                            status: rideStateRef.current === 'active' ? 'ON_TRIP' : 'ONLINE'
+                        });
+                    }
                 }
             );
         })();
@@ -374,8 +396,15 @@ export default function RiderHome() {
 
         // Auto-rejoin if socket reconnects (e.g. when Render backend wakes up)
         socket.on('connect', () => {
-            if (isOnlineRef.current) {
-                socket.emit('driver_online', { driverId: driverIdRef.current, vehicleType: vehicleTypeRef.current });
+            if (isOnlineRef.current && driverIdRef.current) {
+                socket.emit('driver_online', {
+                    driverId: driverIdRef.current,
+                    driverName: driverNameRef.current || 'Driver',
+                    driverVehicle: driverVehicleRef.current || 'Kawasaki Barako 175',
+                    vehicleType: vehicleTypeRef.current || 'TRICYCLE',
+                    lat: currentLocationRef.current?.lat || 8.2280,
+                    lon: currentLocationRef.current?.lon || 124.2452
+                });
             }
         });
 
@@ -479,13 +508,50 @@ export default function RiderHome() {
 
     if (!fontsLoaded) return null;
 
-    const toggleOnlineStatus = () => {
+    const toggleOnlineStatus = async () => {
         const newStatus = !isOnline;
         setIsOnline(newStatus);
 
         if (newStatus && socketRef.current) {
-            // Emulate driver ID and go online
-            socketRef.current.emit('driver_online', { driverId: driverId, vehicleType: vehicleType });
+            let lat = currentLocation?.lat || 8.2280;
+            let lon = currentLocation?.lon || 124.2452;
+
+            // Emit immediately with last known or default coordinates
+            socketRef.current.emit('driver_online', {
+                driverId: driverId,
+                driverName: driverName || 'Driver',
+                driverVehicle: driverVehicle || 'Kawasaki Barako 175',
+                vehicleType: vehicleType || 'TRICYCLE',
+                lat,
+                lon
+            });
+
+            // Also fetch fresh GPS position to refine marker on Admin Map
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    lat = loc.coords.latitude;
+                    lon = loc.coords.longitude;
+                    setCurrentLocation({ lat, lon });
+                    if (webviewRef.current) {
+                        webviewRef.current.injectJavaScript(`updateLocation(${lat}, ${lon}); true;`);
+                    }
+                    socketRef.current?.emit('driver_location_stream', {
+                        driverId: driverId,
+                        driverName: driverName || 'Driver',
+                        driverVehicle: driverVehicle || 'Kawasaki Barako 175',
+                        vehicleType: vehicleType || 'TRICYCLE',
+                        lat,
+                        lon,
+                        status: 'ONLINE'
+                    });
+                }
+            } catch (e) {
+                console.log('Could not refine GPS on go online:', e);
+            }
+        } else if (!newStatus && socketRef.current) {
+            socketRef.current.emit('driver_offline', { driverId: driverId });
         }
     };
 

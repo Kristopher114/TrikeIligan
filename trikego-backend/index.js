@@ -1304,15 +1304,24 @@ const io = new Server(server, {
   }
 });
 
+// Track online drivers and their real-time GPS coordinates in memory
+const onlineDriversMap = new Map();
+
 // Socket.IO real-time event logic
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
+
+  // Helper function to broadcast live online driver locations to admin dashboard
+  const broadcastOnlineDrivers = () => {
+    io.to('admin_room').emit('admin_drivers_update', Array.from(onlineDriversMap.values()));
+  };
 
   // Helper function to broadcast live stats to admin dashboard
   const broadcastAdminStats = async () => {
     try {
       const activeDriversRoom = io.sockets.adapter.rooms.get('available_drivers');
-      const activeDriversCount = activeDriversRoom ? activeDriversRoom.size : 0;
+      const roomCount = activeDriversRoom ? activeDriversRoom.size : 0;
+      const activeDriversCount = Math.max(roomCount, onlineDriversMap.size);
 
       const client = await pool.connect();
       try {
@@ -1345,16 +1354,121 @@ io.on('connection', (socket) => {
   socket.on('admin_join', () => {
     socket.join('admin_room');
     broadcastAdminStats();
+    socket.emit('admin_drivers_update', Array.from(onlineDriversMap.values()));
   });
 
   // 1. Driver goes online
-  socket.on('driver_online', (data) => {
-    console.log(`Driver ${data.driverId} is online with vehicleType ${data.vehicleType || 'TRICYCLE'}`);
-    socket.join(`driver_${data.driverId}`);
+  socket.on('driver_online', async (data) => {
+    if (!data || !data.driverId) return;
+    const driverIdKey = String(data.driverId);
+    console.log(`Driver ${driverIdKey} is online with vehicleType ${data.vehicleType || 'TRICYCLE'}`);
+
+    socket.join(`driver_${driverIdKey}`);
     socket.join('available_drivers'); // Generic room
     if (data.vehicleType) {
       socket.join(`available_drivers_${data.vehicleType}`); // Specific room
     }
+
+    const existing = onlineDriversMap.get(driverIdKey) || {};
+    let driverName = data.driverName || existing.driverName || 'Active Rider';
+    let driverVehicle = data.driverVehicle || existing.driverVehicle || 'Kawasaki Barako 175';
+    let vehicleType = data.vehicleType || existing.vehicleType || 'TRICYCLE';
+
+    const hasValidCoords = typeof data.lat === 'number' && typeof data.lon === 'number' && !isNaN(data.lat) && !isNaN(data.lon);
+    const lat = hasValidCoords ? data.lat : (typeof existing.lat === 'number' ? existing.lat : 8.2280);
+    const lon = hasValidCoords ? data.lon : (typeof existing.lon === 'number' ? existing.lon : 124.2452);
+
+    onlineDriversMap.set(driverIdKey, {
+      driverId: driverIdKey,
+      socketId: socket.id,
+      driverName,
+      driverVehicle,
+      vehicleType,
+      lat,
+      lon,
+      status: data.status || existing.status || 'ONLINE',
+      updatedAt: new Date().toISOString()
+    });
+
+    broadcastOnlineDrivers();
+    broadcastAdminStats();
+
+    // Enrich driver metadata from DB if not sent in payload (supports existing installed APKs)
+    if (!data.driverName || !data.driverVehicle) {
+      try {
+        const client = await pool.connect();
+        try {
+          const dRes = await client.query(
+            `SELECT u.full_name, d.vehicle_model, d.vehicle_plate, d.vehicle_type
+             FROM Users u
+             LEFT JOIN Drivers d ON d.user_id = u.id
+             WHERE u.id = $1 LIMIT 1`,
+            [driverIdKey]
+          );
+          if (dRes.rows.length > 0 && onlineDriversMap.has(driverIdKey)) {
+            const row = dRes.rows[0];
+            const current = onlineDriversMap.get(driverIdKey);
+            onlineDriversMap.set(driverIdKey, {
+              ...current,
+              driverName: row.full_name || current.driverName,
+              driverVehicle: row.vehicle_model
+                ? `${row.vehicle_model}${row.vehicle_plate ? ` (${row.vehicle_plate})` : ''}`
+                : current.driverVehicle,
+              vehicleType: row.vehicle_type || current.vehicleType
+            });
+            broadcastOnlineDrivers();
+          }
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        console.error('Error enriching online driver info:', err);
+      }
+    }
+  });
+
+  // 1.5 Driver streams real-time GPS location while online
+  socket.on('driver_location_stream', (data) => {
+    if (!data || !data.driverId) return;
+    if (typeof data.lat !== 'number' || typeof data.lon !== 'number') return;
+
+    const driverIdKey = String(data.driverId);
+    const existing = onlineDriversMap.get(driverIdKey) || {};
+
+    onlineDriversMap.set(driverIdKey, {
+      driverId: driverIdKey,
+      socketId: socket.id,
+      driverName: data.driverName || existing.driverName || 'Active Rider',
+      driverVehicle: data.driverVehicle || existing.driverVehicle || 'Kawasaki Barako 175',
+      vehicleType: data.vehicleType || existing.vehicleType || 'TRICYCLE',
+      lat: data.lat,
+      lon: data.lon,
+      status: data.status || existing.status || 'ONLINE',
+      updatedAt: new Date().toISOString()
+    });
+
+    broadcastOnlineDrivers();
+  });
+
+  // 1.6 Driver goes offline
+  socket.on('driver_offline', (data) => {
+    const driverIdKey = data && data.driverId ? String(data.driverId) : null;
+    console.log(`Driver ${driverIdKey || socket.id} went offline`);
+
+    socket.leave('available_drivers');
+    socket.leave('available_drivers_TRICYCLE');
+    socket.leave('available_drivers_SINGLE');
+
+    if (driverIdKey && onlineDriversMap.has(driverIdKey)) {
+      onlineDriversMap.delete(driverIdKey);
+    }
+    for (const [key, val] of onlineDriversMap.entries()) {
+      if (val.socketId === socket.id) {
+        onlineDriversMap.delete(key);
+      }
+    }
+
+    broadcastOnlineDrivers();
     broadcastAdminStats();
   });
 
@@ -1414,6 +1528,16 @@ io.on('connection', (socket) => {
     
     // Link both to a specific active ride room
     socket.join(`ride_${data.rideId}`);
+
+    if (data.driverId && onlineDriversMap.has(String(data.driverId))) {
+      const current = onlineDriversMap.get(String(data.driverId));
+      onlineDriversMap.set(String(data.driverId), {
+        ...current,
+        status: 'ON_TRIP',
+        updatedAt: new Date().toISOString()
+      });
+      broadcastOnlineDrivers();
+    }
 
     // Insert into Rides table
     (async () => {
@@ -1512,6 +1636,16 @@ io.on('connection', (socket) => {
     io.to(`ride_${data.rideId}`).emit('ride_status_update', { status: 'cancelled' });
     io.emit(`ride_cancelled_by_driver_${data.passengerId}`, { rideId: data.rideId });
 
+    if (data.driverId && onlineDriversMap.has(String(data.driverId))) {
+      const current = onlineDriversMap.get(String(data.driverId));
+      onlineDriversMap.set(String(data.driverId), {
+        ...current,
+        status: 'ONLINE',
+        updatedAt: new Date().toISOString()
+      });
+      broadcastOnlineDrivers();
+    }
+
     // Update in DB
     (async () => {
       const client = await pool.connect();
@@ -1546,6 +1680,36 @@ io.on('connection', (socket) => {
       lon: data.lon,
       heading: data.heading
     });
+
+    // Also mirror live GPS update to Admin Web map
+    if (typeof data.lat === 'number' && typeof data.lon === 'number') {
+      const driverIdKey = data.driverId ? String(data.driverId) : null;
+      if (driverIdKey && onlineDriversMap.has(driverIdKey)) {
+        const current = onlineDriversMap.get(driverIdKey);
+        onlineDriversMap.set(driverIdKey, {
+          ...current,
+          lat: data.lat,
+          lon: data.lon,
+          status: 'ON_TRIP',
+          updatedAt: new Date().toISOString()
+        });
+        broadcastOnlineDrivers();
+      } else {
+        for (const [key, val] of onlineDriversMap.entries()) {
+          if (val.socketId === socket.id) {
+            onlineDriversMap.set(key, {
+              ...val,
+              lat: data.lat,
+              lon: data.lon,
+              status: 'ON_TRIP',
+              updatedAt: new Date().toISOString()
+            });
+            broadcastOnlineDrivers();
+            break;
+          }
+        }
+      }
+    }
   });
 
   // 6. Ride status updates (Picked Up, Completed, Cancelled)
@@ -1658,6 +1822,16 @@ io.on('connection', (socket) => {
       io.emit(`ride_completed_${data.passengerId}`, { rideId: data.rideId });
     }
 
+    if (data.driverId && onlineDriversMap.has(String(data.driverId))) {
+      const current = onlineDriversMap.get(String(data.driverId));
+      onlineDriversMap.set(String(data.driverId), {
+        ...current,
+        status: 'ONLINE',
+        updatedAt: new Date().toISOString()
+      });
+      broadcastOnlineDrivers();
+    }
+
     // Update in DB
     const updateRideDB = async () => {
       const client = await pool.connect();
@@ -1745,6 +1919,16 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
+    let removedAny = false;
+    for (const [key, val] of onlineDriversMap.entries()) {
+      if (val.socketId === socket.id) {
+        onlineDriversMap.delete(key);
+        removedAny = true;
+      }
+    }
+    if (removedAny) {
+      broadcastOnlineDrivers();
+    }
     broadcastAdminStats();
   });
 });
@@ -1945,6 +2129,14 @@ app.get('/api/admin/dispatch-logs', async (req, res) => {
     console.error('Error fetching dispatch logs:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
+});
+
+// GET Currently Online Drivers & Live Locations (Admin Monitoring)
+app.get('/api/admin/online-drivers', (req, res) => {
+  res.json({
+    status: 'success',
+    data: Array.from(onlineDriversMap.values())
+  });
 });
 
 // Start the server
