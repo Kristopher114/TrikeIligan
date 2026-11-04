@@ -15,10 +15,29 @@ export default function ProfileScreen() {
 
     const loadProfile = async () => {
         try {
+            const id = await AsyncStorage.getItem('userId');
             const name = await AsyncStorage.getItem('user_full_name') || await AsyncStorage.getItem('userFullName');
             const img = await AsyncStorage.getItem('user_profile_image');
             if (name) setFullName(name);
             if (img) setProfileImage(img);
+
+            // Fetch fresh profile from backend to ensure we don't display a stale or cross-account image
+            if (id) {
+                const res = await fetch(`https://trikeiligan.onrender.com/api/user-profile/${id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'success' && data.user) {
+                        if (data.user.fullName) setFullName(data.user.fullName);
+                        if (data.user.profileImage) {
+                            setProfileImage(data.user.profileImage);
+                            await AsyncStorage.setItem('user_profile_image', data.user.profileImage);
+                        } else {
+                            setProfileImage('');
+                            await AsyncStorage.removeItem('user_profile_image');
+                        }
+                    }
+                }
+            }
         } catch (e) {
             console.error("Failed to load profile", e);
         }
@@ -43,7 +62,15 @@ export default function ProfileScreen() {
                     text: "Log Out",
                     style: "destructive",
                     onPress: async () => {
-                        await AsyncStorage.removeItem('userFullName');
+                        await AsyncStorage.multiRemove([
+                            'userId',
+                            'userFullName',
+                            'user_full_name',
+                            'user_username',
+                            'user_email',
+                            'user_phone',
+                            'user_profile_image'
+                        ]);
                         router.replace('/');
                     }
                 }

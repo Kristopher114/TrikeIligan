@@ -37,6 +37,20 @@ export default function LoginScreen() {
       console.log("Login API Response:", data);
 
       if (response.ok) {
+        // Clear any previous driver session data first to prevent cross-account profile leakage
+        await AsyncStorage.multiRemove([
+          'userId',
+          'userFullName',
+          'driverName',
+          'userEmail',
+          'userPhone',
+          'userProfileImage',
+          'driverVehicle',
+          'driverVehicleType',
+          'driverVehiclePlate',
+          'driverRating'
+        ]);
+
         if (data.user?.fullName) {
           await AsyncStorage.setItem('userFullName', data.user.fullName);
         }
@@ -52,6 +66,11 @@ export default function LoginScreen() {
         }
         if (data.user?.rating) {
           await AsyncStorage.setItem('driverRating', data.user.rating.toString());
+        }
+        if (data.user?.profileImage) {
+          await AsyncStorage.setItem('userProfileImage', data.user.profileImage);
+        } else {
+          await AsyncStorage.removeItem('userProfileImage');
         }
         const status = data.user?.approvalStatus;
         if (status === 'PENDING' || !status) {

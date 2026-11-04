@@ -117,6 +117,9 @@ export default function DriverProfileScreen() {
                             if (u.profileImage) {
                                 setProfileImage(u.profileImage);
                                 await AsyncStorage.setItem('userProfileImage', u.profileImage);
+                            } else {
+                                setProfileImage('');
+                                await AsyncStorage.removeItem('userProfileImage');
                             }
                         }
                     }

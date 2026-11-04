@@ -38,7 +38,18 @@ export default function LoginScreen() {
       console.log("Login API Response:", data);
 
       if (response.ok) {
-        // Save user data to AsyncStorage for persistence
+        // Clear any previous user session data first to prevent cross-account profile leakage
+        await AsyncStorage.multiRemove([
+          'userId',
+          'userFullName',
+          'user_full_name',
+          'user_username',
+          'user_email',
+          'user_phone',
+          'user_profile_image'
+        ]);
+
+        // Save fresh user data to AsyncStorage for persistence
         if (data.user?.fullName) {
           await AsyncStorage.setItem('userFullName', data.user.fullName);
           await AsyncStorage.setItem('user_full_name', data.user.fullName);
@@ -57,6 +68,8 @@ export default function LoginScreen() {
         }
         if (data.user?.profileImage) {
           await AsyncStorage.setItem('user_profile_image', data.user.profileImage);
+        } else {
+          await AsyncStorage.removeItem('user_profile_image');
         }
         router.push('/home');
       } else {

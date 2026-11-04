@@ -146,6 +146,29 @@ export default function RiderHome() {
             if (rating) setDriverRating(rating);
             if (photo) setDriverPhoto(photo);
 
+            // Fetch fresh profile info from backend to ensure photo and details match the active account
+            if (id) {
+                try {
+                    const profRes = await fetch(`https://trikeiligan.onrender.com/api/user-profile/${id}`);
+                    if (profRes.ok) {
+                        const profJson = await profRes.json();
+                        if (profJson.status === 'success' && profJson.user) {
+                            const u = profJson.user;
+                            if (u.fullName) setDriverName(u.fullName);
+                            if (u.profileImage) {
+                                setDriverPhoto(u.profileImage);
+                                await AsyncStorage.setItem('userProfileImage', u.profileImage);
+                            } else {
+                                setDriverPhoto('');
+                                await AsyncStorage.removeItem('userProfileImage');
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.log("Failed to refresh driver profile", err);
+                }
+            }
+
             // Fetch real stats from backend
             if (id) {
                 try {
@@ -598,8 +621,18 @@ export default function RiderHome() {
     };
 
     const handleLogout = async () => {
-        await AsyncStorage.removeItem('userFullName');
-        await AsyncStorage.removeItem('userId');
+        await AsyncStorage.multiRemove([
+            'userId',
+            'userFullName',
+            'driverName',
+            'userEmail',
+            'userPhone',
+            'userProfileImage',
+            'driverVehicle',
+            'driverVehicleType',
+            'driverVehiclePlate',
+            'driverRating'
+        ]);
         router.replace('/login');
     };
 

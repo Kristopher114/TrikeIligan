@@ -45,6 +45,16 @@ export default function SignupScreen() {
 
         setIsSubmitting(true);
         try {
+            // Clear any lingering session from previous accounts
+            await AsyncStorage.multiRemove([
+                'userId',
+                'userFullName',
+                'user_full_name',
+                'user_username',
+                'user_email',
+                'user_phone',
+                'user_profile_image'
+            ]);
             const response = await fetch('https://trikeiligan.onrender.com/api/signup', {
                 method: 'POST',
                 headers: {

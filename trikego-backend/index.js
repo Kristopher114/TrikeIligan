@@ -570,7 +570,7 @@ app.post('/api/driver-login', async (req, res) => {
   try {
     client = await getDbClient();
     const query = `
-      SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.is_email_verified, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
+      SELECT u.id, u.full_name, u.email, u.profile_picture_url, u.password_hash, u.role, u.is_email_verified, d.vehicle_model, d.vehicle_type, d.rating, d.approval_status, d.rejection_reason
       FROM Users u
       JOIN Drivers d ON u.id = d.user_id
       WHERE LOWER(TRIM(u.email)) = LOWER($1) OR TRIM(u.phone_number) = $1
@@ -615,6 +615,7 @@ app.post('/api/driver-login', async (req, res) => {
         id: user.id,
         fullName: user.full_name,
         email: user.email,
+        profileImage: user.profile_picture_url || null,
         role: user.role,
         vehicleModel: user.vehicle_model || (user.vehicle_type === 'SINGLE' ? 'Single Motorcycle' : 'Kawasaki Barako 175'),
         vehicleType: user.vehicle_type || 'TRICYCLE',

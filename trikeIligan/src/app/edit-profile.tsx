@@ -69,6 +69,9 @@ export default function EditProfileScreen() {
                             if (data.user.profileImage) {
                                 setProfileImage(data.user.profileImage);
                                 await AsyncStorage.setItem('user_profile_image', data.user.profileImage);
+                            } else {
+                                setProfileImage('');
+                                await AsyncStorage.removeItem('user_profile_image');
                             }
                         }
                     }

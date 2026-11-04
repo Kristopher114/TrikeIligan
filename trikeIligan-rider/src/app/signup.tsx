@@ -88,6 +88,20 @@ export default function SignupScreen() {
 
             const licensePhotoUrl = cloudData.secure_url;
 
+            // Clear any lingering session from previous accounts
+            await AsyncStorage.multiRemove([
+                'userId',
+                'userFullName',
+                'driverName',
+                'userEmail',
+                'userPhone',
+                'userProfileImage',
+                'driverVehicle',
+                'driverVehicleType',
+                'driverVehiclePlate',
+                'driverRating'
+            ]);
+
             // 2. Register Driver in Backend
             const response = await fetch('https://trikeiligan.onrender.com/api/driver-signup', {
                 method: 'POST',
