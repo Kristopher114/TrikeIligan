@@ -2131,6 +2131,16 @@ app.get('/api/admin/dispatch-logs', async (req, res) => {
   }
 });
 
+// GET Health & Version Check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: '1.1.0-live-map',
+    activeOnlineRiders: onlineDriversMap.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // GET Currently Online Drivers & Live Locations (Admin Monitoring)
 app.get('/api/admin/online-drivers', (req, res) => {
   res.json({

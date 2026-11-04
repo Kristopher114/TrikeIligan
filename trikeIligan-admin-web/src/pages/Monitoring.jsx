@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MdOutlineMap, MdRefresh, MdClose, MdSearch, MdMyLocation } from "react-icons/md";
 import { io } from 'socket.io-client';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import '../css/dashboard.css';
 
 const BACKEND_URL = 'https://trikeiligan.onrender.com';
@@ -114,8 +116,7 @@ export default function Monitoring() {
 
     // Initialize Leaflet Map inside .map-container
     useEffect(() => {
-        const L = window.L;
-        if (!L || !mapContainerRef.current || mapInstanceRef.current) return;
+        if (!mapContainerRef.current || mapInstanceRef.current) return;
 
         const map = L.map(mapContainerRef.current, {
             center: ILIGAN_CENTER,
@@ -145,9 +146,8 @@ export default function Monitoring() {
 
     // Sync onlineDrivers state to Leaflet markers in real-time
     useEffect(() => {
-        const L = window.L;
         const map = mapInstanceRef.current;
-        if (!L || !map) return;
+        if (!map) return;
 
         const currentMarkers = markersMapRef.current;
         const activeIds = new Set();
@@ -277,11 +277,10 @@ export default function Monitoring() {
 
     // Recenter map to Iligan City or fit all online drivers
     const handleRecenterMap = () => {
-        const L = window.L;
         const map = mapInstanceRef.current;
         if (!map) return;
 
-        if (L && onlineDrivers.length > 1) {
+        if (onlineDrivers.length > 1) {
             const bounds = L.latLngBounds(
                 onlineDrivers.map(d => [Number(d.lat), Number(d.lon)])
             );
