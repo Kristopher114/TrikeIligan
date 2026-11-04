@@ -4,12 +4,23 @@ import {
     MdOutlineBadge,
     MdOutlineRoute,
     MdSettings,
-    MdOutlineMap
+    MdLogout
 } from "react-icons/md";
 import { NavLink, Outlet } from 'react-router-dom';
 import '../css/dashboard.css';
 
-export default function DashboardLayout() {
+export default function DashboardLayout({ onLogout }) {
+    let adminName = 'Administrator';
+    try {
+        const raw = localStorage.getItem('adminData');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.full_name) adminName = parsed.full_name;
+            else if (parsed.name) adminName = parsed.name;
+            else if (parsed.email) adminName = parsed.email.split('@')[0];
+        }
+    } catch (_) {}
+
     return (
         <div className="dashboard-container">
             {/* Sidebar */}
@@ -41,6 +52,27 @@ export default function DashboardLayout() {
                         <MdSettings size={20} />
                         <span>Settings</span>
                     </NavLink>
+
+                    <button
+                        onClick={onLogout}
+                        className="nav-item"
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            width: '100%',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            marginTop: 'auto',
+                            color: '#FFCDD2',
+                            padding: '12px 16px'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(211, 47, 47, 0.2)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        title="Sign out of Admin Dashboard"
+                    >
+                        <MdLogout size={20} />
+                        <span>Log Out</span>
+                    </button>
                 </nav>
 
                 <div className="sidebar-footer">
@@ -49,7 +81,7 @@ export default function DashboardLayout() {
                             <span className="status-dot"></span>
                             <strong>Terminal Secure</strong>
                         </div>
-                        <p className="secure-text">All database backup dispatch channels are fully active.</p>
+                        <p className="secure-text">Signed in as <strong>{adminName}</strong></p>
                     </div>
                 </div>
             </aside>
